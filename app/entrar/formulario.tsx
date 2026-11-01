@@ -22,7 +22,7 @@ export function FormularioEntrar({ erroLink }: { erroLink: boolean }) {
       email: email.trim().toLowerCase(),
       options: {
         shouldCreateUser: false, // só entra quem o Carlos cadastrou
-        emailRedirectTo: `${window.location.origin}/auth/confirmar`,
+        emailRedirectTo: `${window.location.origin}/auth/link`,
       },
     });
     setCarregando(false);
@@ -58,7 +58,7 @@ export function FormularioEntrar({ erroLink }: { erroLink: boolean }) {
       <form onSubmit={confirmarCodigo} className="space-y-4">
         <div className="rounded-2xl bg-menu-item p-4 text-sm leading-relaxed">
           Se <strong className="text-white">{email}</strong> estiver cadastrado, o link de acesso já está a caminho.
-          Toca no link do e-mail ou digita aqui o código que veio junto.
+          Abre o e-mail e toca no link. Se o e-mail trouxer um código, pode digitar aqui.
         </div>
         <input
           className="campo text-center text-2xl tracking-[0.4em] !bg-white !text-black"

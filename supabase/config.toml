@@ -5,8 +5,8 @@ project_id = "area-aluno-ca"
 [auth]
 enabled = true
 # Endereço principal do app (usado nos links do e-mail)
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/**", "https://*.vercel.app/**"]
+site_url = "https://area-aluno-ca.vercel.app"
+additional_redirect_urls = ["https://area-aluno-ca.vercel.app/**", "http://localhost:3000/**", "https://*.vercel.app/**"]
 jwt_expiry = 3600
 # Só entra quem o professor cadastrou
 enable_signup = false

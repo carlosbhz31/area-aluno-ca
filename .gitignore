@@ -13,3 +13,5 @@ dados/
 *.csv
 .claude/
 supabase/.temp/
+.vercel
+.env*
