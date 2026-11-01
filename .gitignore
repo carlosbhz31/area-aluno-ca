@@ -1,6 +1,14 @@
 node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+.vercel
 .env*
 !.env.example
 # dados pessoais de alunos: nunca versionar
 export-*.json
 *.export.json
+dados/
+*.csv
+.claude/

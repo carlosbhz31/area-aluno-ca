@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* Identidade Consultoria Premium CA — paleta do Drive (carlos - marca/Paleta.png):
+   índigo #4423ED, preto #090909, grafite #272425, cinza claro #E4E4E4 */
+
+:root {
+  --marca: #4423ed;
+  --marca-forte: #3418c9;
+  --marca-suave: #ece9fe;
+  --fundo: #f3f3f5;
+  --cartao: #ffffff;
+  --borda: #e4e4e4;
+  --texto: #121113;
+  --texto-suave: #5f5c63;
+  --menu: #090909;
+  --menu-item: #272425;
+  --menu-texto: #e4e4e4;
+  --ok: #15803d;
+  --ok-suave: #dcfce7;
+  --alerta: #b45309;
+  --alerta-suave: #fef3c7;
+  --perigo: #b91c1c;
+  --perigo-suave: #fee2e2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --marca: #7b62ff;
+    --marca-forte: #9a87ff;
+    --marca-suave: #221a4d;
+    --fundo: #0d0c0e;
+    --cartao: #18171a;
+    --borda: #2c2a2e;
+    --texto: #f1f0f2;
+    --texto-suave: #a5a2a9;
+    --menu: #050505;
+    --menu-item: #1f1d20;
+    --ok: #4ade80;
+    --ok-suave: #12301d;
+    --alerta: #fbbf24;
+    --alerta-suave: #3a2c0b;
+    --perigo: #f87171;
+    --perigo-suave: #3b1414;
+  }
+}
+
+@theme inline {
+  --color-marca: var(--marca);
+  --color-marca-forte: var(--marca-forte);
+  --color-marca-suave: var(--marca-suave);
+  --color-fundo: var(--fundo);
+  --color-cartao: var(--cartao);
+  --color-borda: var(--borda);
+  --color-texto: var(--texto);
+  --color-texto-suave: var(--texto-suave);
+  --color-menu: var(--menu);
+  --color-menu-item: var(--menu-item);
+  --color-menu-texto: var(--menu-texto);
+  --color-ok: var(--ok);
+  --color-ok-suave: var(--ok-suave);
+  --color-alerta: var(--alerta);
+  --color-alerta-suave: var(--alerta-suave);
+  --color-perigo: var(--perigo);
+  --color-perigo-suave: var(--perigo-suave);
+  --font-sans: var(--fonte), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+/* Componentes ficam na camada "components" para os utilitários (pl-11, !w-40…) poderem sobrescrever */
+@layer components {
+.cartao {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: 1rem;
+}
+
+.rotulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.campo {
+  width: 100%;
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 1rem;
+  outline: none;
+}
+.campo:focus {
+  border-color: var(--marca);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--marca) 25%, transparent);
+}
+
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.125rem;
+  font-weight: 600;
+  background: var(--marca);
+  color: #fff;
+  transition: background 0.15s;
+}
+.botao:hover {
+  background: var(--marca-forte);
+}
+.botao:disabled {
+  opacity: 0.6;
+}
+.botao-secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+  color: var(--texto);
+}
+.botao-secundario:hover {
+  border-color: var(--marca);
+}
+
+.pb-seguro {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+}
