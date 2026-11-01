@@ -49,17 +49,6 @@ export function wavPausa(segundos: number): Blob {
   return new Blob([buf], { type: "audio/wav" });
 }
 
-export type ModoAudio = "ambient" | "transient" | "auto";
-
-type SessaoAudio = { type: string };
-
-/** Modo da sessão de áudio (iOS 17+): "ambient" mistura com a música, "transient" abaixa a música um instante. */
-export function definirModoAudio(modo: ModoAudio) {
-  const sessao = (navigator as Navigator & { audioSession?: SessaoAudio }).audioSession;
-  if (sessao) sessao.type = modo;
-  return Boolean(sessao);
-}
-
 /** Toca silêncio até o fim da pausa e então o pip. Precisa ser chamado num toque da pessoa. */
 export function tocarPausa(el: HTMLAudioElement, segundos: number) {
   if (el.src.startsWith("blob:")) URL.revokeObjectURL(el.src);

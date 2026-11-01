@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Flag, Loader2, Minus, Plus, SkipForward, Timer, Trash2, Video } from "lucide-react";
+import { ArrowLeft, Check, Flag, Loader2, Minus, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX } from "lucide-react";
+import { pararPausa, tocarPausa } from "@/lib/som-pausa";
 import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
 import { AtivarAvisos } from "./ativar-avisos";
 import { Barra } from "../ui";
@@ -55,7 +56,10 @@ export function ExecucaoTreino(p: {
   const [finalizando, setFinalizando] = useState(false);
   const [esforco, setEsforco] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const audio = useRef<AudioContext | null>(null);
+  // Pip do fim da pausa: um áudio (silêncio + pip) que segue tocando com a tela bloqueada.
+  // No iPhone ele pausa a música da pessoa, por isso dá para desligar.
+  const som = useRef<HTMLAudioElement | null>(null);
+  const [comSom, setComSom] = useState(true);
   const tocou = useRef(true);
 
   const [feitas, setFeitas] = useState(() => new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento }))));
@@ -88,6 +92,7 @@ export function ExecucaoTreino(p: {
       }
     }
     try {
+      if (localStorage.getItem("ca-pip-pausa") === "0") setComSom(false);
       const salvo = JSON.parse(localStorage.getItem(chaveLocal) ?? "null") as Record<string, Valor> | null;
       if (salvo) {
         setValores((v) => {
@@ -115,31 +120,37 @@ export function ExecucaoTreino(p: {
     return () => clearInterval(t);
   }, []);
 
-  const bipe = useCallback(() => {
+  /** Só funciona dentro de um toque da pessoa (regra dos celulares para tocar áudio). */
+  function tocarPip(segundos: number, ligado = comSom) {
+    const el = som.current;
+    if (!el) return;
+    if (!ligado || segundos <= 0) return pararPausa(el);
+    tocarPausa(el, segundos).catch(() => {
+      // aparelho não deixou tocar: o push avisa
+    });
     try {
-      navigator.vibrate?.([300, 120, 300, 120, 300]);
-      const ctx = audio.current;
-      if (!ctx) return;
-      [0, 0.35, 0.7].forEach((t) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.frequency.value = 880;
-        g.gain.setValueAtTime(0.25, ctx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.25);
-        o.connect(g).connect(ctx.destination);
-        o.start(ctx.currentTime + t);
-        o.stop(ctx.currentTime + t + 0.3);
-      });
+      if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: "Pausa do treino", artist: "Consultoria Premium CA" });
     } catch {
-      // sem som neste aparelho: o push avisa
+      // ignora
     }
-  }, []);
+  }
+
+  function alternarSom() {
+    const novo = !comSom;
+    setComSom(novo);
+    try {
+      localStorage.setItem("ca-pip-pausa", novo ? "1" : "0");
+    } catch {
+      // ignora
+    }
+    tocarPip(pausaFim && !aviso ? (pausaFim - Date.now()) / 1000 : 0, novo);
+  }
 
   const restante = pausaFim ? Math.max(0, (pausaFim - agora) / 1000) : 0;
   useEffect(() => {
     if (pausaFim && restante <= 0 && !tocou.current) {
       tocou.current = true;
-      if (document.visibilityState === "visible") bipe();
+      if (document.visibilityState === "visible") navigator.vibrate?.([300, 120, 300, 120, 300]);
       setAviso("Pausa acabou. Bora!");
       const t = setTimeout(() => {
         setPausaFim(null);
@@ -147,7 +158,7 @@ export function ExecucaoTreino(p: {
       }, 5000);
       return () => clearTimeout(t);
     }
-  }, [pausaFim, restante, bipe]);
+  }, [pausaFim, restante]);
 
   const todas = useMemo(() => seriesDoPlano(plano), [plano]);
   const feitasValidas = todas.filter((s) => !s.aquecimento && feitas.has(chaveSerie(s))).length;
@@ -167,12 +178,6 @@ export function ExecucaoTreino(p: {
   async function alternar(s: SerieChave, e: ExercicioPlano) {
     const k = chaveSerie(s);
     if (salvando.has(k)) return;
-    try {
-      audio.current ??= new AudioContext(); // precisa de um toque para liberar o som
-      if (audio.current.state === "suspended") audio.current.resume();
-    } catch {
-      // sem áudio
-    }
     setErro(null);
     setSalvando((x) => new Set(x).add(k));
     const fim = () => setSalvando((x) => { const n = new Set(x); n.delete(k); return n; });
@@ -200,6 +205,7 @@ export function ExecucaoTreino(p: {
     const prox = proximaSerie(plano, novas, s);
     const pausa = s.aquecimento || !prox ? 0 : e.pausa;
     iniciarPausaLocal(undefined, undefined, pausa); // já começa a contar; o servidor confirma em seguida
+    tocarPip(pausa);
     const v = valores[k] ?? { carga: "", reps: "" };
     try {
       const r = await marcarSerie({
@@ -228,9 +234,12 @@ export function ExecucaoTreino(p: {
       setPausaFim(null);
       setAviso(null);
       tocou.current = true;
+      tocarPip(0);
     } else if (pausaFim) {
-      setPausaFim(Math.max(Date.now() + 3000, pausaFim + seg * 1000));
+      const fim = Math.max(Date.now() + 3000, pausaFim + seg * 1000);
+      setPausaFim(fim);
       setPausaTotal((t) => Math.max(3, t + seg));
+      tocarPip((fim - Date.now()) / 1000);
     }
     const r = await ajustarPausa(seg).catch(() => null);
     if (r?.terminaEm && seg !== "pular") iniciarPausaLocal(r.terminaEm, r.agora, Math.max(3, pausaTotal + seg));
@@ -374,8 +383,14 @@ export function ExecucaoTreino(p: {
             )}
             <button onClick={() => mudarPausa("pular")} className="grid size-10 place-items-center rounded-xl bg-white/10" aria-label="Pular pausa"><SkipForward className="size-4" /></button>
           </div>
+          {!aviso && (
+            <button onClick={alternarSom} className="mx-auto mt-1 flex max-w-xl items-center gap-1 rounded-full bg-menu/90 px-3 py-1 text-[11px] text-white/80">
+              {comSom ? <><Volume2 className="size-3.5" /> Pip ligado · pausa a sua música</> : <><VolumeX className="size-3.5" /> Pip desligado · só a notificação</>}
+            </button>
+          )}
         </div>
       )}
+      <audio ref={som} playsInline preload="none" />
     </div>
   );
 }
