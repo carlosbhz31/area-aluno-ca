@@ -1,10 +1,8 @@
-import { redirect } from "next/navigation";
 import { MenuAluno } from "@/components/menu-aluno";
 import { exigirAluno } from "@/lib/sessao";
 
 export default async function LayoutAluno({ children }: { children: React.ReactNode }) {
-  const s = await exigirAluno();
-  if (s.papel === "professor") redirect("/professor/hoje");
+  await exigirAluno(); // professor e nutricionista vão para a própria área
 
   return (
     <div className="min-h-dvh">

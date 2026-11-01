@@ -192,6 +192,18 @@ export function FormConfiguracoes({ acao, valores }: { acao: Acao; valores: { wh
   );
 }
 
+export function FormNutricionista({ acao }: { acao: Acao }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  return (
+    <form action={enviar} className="flex flex-wrap items-start gap-3">
+      <input name="email" type="email" required placeholder="email.da.nutri@exemplo.com" className="campo !w-auto min-w-64 flex-1" />
+      <button className="botao" disabled={pendente}>{pendente ? <Loader2 className="size-4 animate-spin" /> : "Liberar acesso"}</button>
+      {estado?.erro && <p className="w-full text-sm text-perigo">{estado.erro}</p>}
+      {estado?.ok && <p className="w-full text-sm text-ok">{estado.ok}</p>}
+    </form>
+  );
+}
+
 export function BotaoSituacao({ acao, inativo, nome }: { acao: () => Promise<void>; inativo: boolean; nome: string }) {
   const [pendente, setPendente] = useState(false);
   async function clicar() {

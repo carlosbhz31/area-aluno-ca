@@ -98,6 +98,6 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
     enviadoNaSemana,
     respostaNova: respondido.data ?? null,
     reavaliacao,
-    contato: { whatsapp: (mapaConfig.whatsapp_carlos as string | null) ?? null, agenda: (mapaConfig.link_agenda as string | null) ?? null },
+    contato: { whatsapp: (mapaConfig.whatsapp_carlos as string | null) || null, agenda: (mapaConfig.link_agenda as string | null) || null },
   };
 }

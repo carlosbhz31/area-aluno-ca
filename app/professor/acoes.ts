@@ -236,14 +236,54 @@ export async function salvarConfiguracoes(_: Resultado, f: FormData): Promise<Re
   if (agenda && !/^https:\/\//.test(agenda)) return { erro: "O link da agenda tem que começar com https://" };
   const dia = Number(texto(f, "dia_padrao_acompanhamento") ?? 1);
   const linhas = [
-    { chave: "whatsapp_carlos", valor: whatsapp },
-    { chave: "link_agenda", valor: agenda },
+    // vazio vira "" (a coluna não aceita nulo)
+    { chave: "whatsapp_carlos", valor: whatsapp ?? "" },
+    { chave: "link_agenda", valor: agenda ?? "" },
     { chave: "dia_padrao_acompanhamento", valor: dia },
   ];
   const { error } = await supabase.from("configuracoes").upsert(linhas);
   if (error) return { erro: "Não consegui salvar." };
   revalidatePath("/professor/configuracoes");
   return { ok: "Salvo." };
+}
+
+/** Libera o acesso da nutricionista (login por link, só vê os planos alimentares). */
+export async function liberarNutricionista(_: Resultado, f: FormData): Promise<Resultado> {
+  await exigirProfessor();
+  const email = texto(f, "email")?.toLowerCase();
+  if (!email || !email.includes("@")) return { erro: "Coloca o e-mail da nutricionista." };
+  const admin = clienteAdmin();
+
+  const { data: aluno } = await admin.from("alunos").select("id").eq("email", email).maybeSingle();
+  if (aluno) return { erro: "Esse e-mail é de um aluno. Use outro e-mail para a nutricionista." };
+
+  const { data: criado, error } = await admin.auth.admin.createUser({ email, email_confirm: true });
+  let id = criado?.user?.id;
+  if (error) {
+    if (!/already|registered|exists/i.test(error.message)) return { erro: "Não consegui criar o acesso." };
+    for (let pagina = 1; !id; pagina++) {
+      const { data } = await admin.auth.admin.listUsers({ page: pagina, perPage: 200 });
+      if (!data.users.length) break;
+      id = data.users.find((u) => u.email?.toLowerCase() === email)?.id;
+    }
+  }
+  if (!id) return { erro: "Não consegui criar o acesso." };
+
+  const { data: perfil } = await admin.from("perfis").select("papel").eq("id", id).maybeSingle();
+  if (perfil?.papel === "professor") return { erro: "Esse e-mail é de professor." };
+  await admin.from("perfis").upsert({ id, papel: "nutricionista" });
+  await admin.auth.admin.updateUserById(id, { ban_duration: "none" });
+  revalidatePath("/professor/configuracoes");
+  return { ok: "Acesso liberado. Ela entra em area-aluno-ca.vercel.app com esse e-mail." };
+}
+
+export async function removerNutricionista(id: string) {
+  await exigirProfessor();
+  const admin = clienteAdmin();
+  const { data: perfil } = await admin.from("perfis").select("papel").eq("id", id).maybeSingle();
+  if (perfil?.papel !== "nutricionista") return;
+  await admin.auth.admin.deleteUser(id); // os PDFs que ela publicou continuam com os alunos
+  revalidatePath("/professor/configuracoes");
 }
 
 export async function adicionarAnotacao(alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {

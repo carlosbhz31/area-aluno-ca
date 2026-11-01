@@ -93,6 +93,51 @@ if (outroCiclo) {
 const { error: ePdf } = await cliente.storage.from("documentos").upload(`${aluno!.id}/plano.pdf`, new Blob(["%PDF"], { type: "application/pdf" }), { contentType: "application/pdf" });
 confere("aluno não sobe PDF de plano alimentar", !!ePdf);
 
+const { data: listaNutriAluno } = await cliente.rpc("alunos_da_nutricao");
+confere("aluno não vê a lista da nutrição", (listaNutriAluno ?? []).length === 0);
+
+// Nutricionista fictícia
+const emailNutri = `nutri-teste-${Date.now()}@exemplo.invalid`;
+const { data: nutriUser } = await admin.auth.admin.createUser({ email: emailNutri, email_confirm: true });
+await admin.from("perfis").upsert({ id: nutriUser.user!.id, papel: "nutricionista" });
+const { data: linkNutri } = await admin.auth.admin.generateLink({ type: "magiclink", email: emailNutri });
+const nutri = createClient(URL, ANON, { auth: { persistSession: false } });
+await nutri.auth.verifyOtp({ token_hash: linkNutri.properties?.hashed_token ?? "", type: "email" });
+
+await admin.from("alunos").update({ tem_nutricao: true }).eq("id", aluno!.id);
+const { data: semNutri } = await admin.from("alunos").select("id").eq("tem_nutricao", false).neq("situacao", "inativo").limit(1).maybeSingle();
+
+const { data: listaNutri } = await nutri.rpc("alunos_da_nutricao");
+const { count: totalNutri } = await admin.from("alunos").select("id", { count: "exact", head: true }).eq("tem_nutricao", true).neq("situacao", "inativo");
+confere("nutricionista vê só alunos com nutrição", (listaNutri ?? []).length === totalNutri && (listaNutri ?? []).every((x: { id: string }) => x.id));
+confere("lista da nutrição traz só nome (sem e-mail, valor, telefone)", Object.keys((listaNutri ?? [])[0] ?? {}).every((k) => ["id", "nome", "nutricionista", "renovacao_plano_alimentar"].includes(k)));
+for (const t of ["alunos", "acompanhamentos", "registros_evolucao", "anotacoes_internas", "dados_privados", "anamneses", "ciclos"]) {
+  const { data: d } = await nutri.from(t).select("*").limit(3);
+  confere(`nutricionista não lê ${t}`, (d ?? []).length === 0);
+}
+const pdf = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+const caminhoNutri = `${aluno!.id}/plano-teste-${Date.now()}.pdf`;
+const { error: eUpNutri } = await nutri.storage.from("documentos").upload(caminhoNutri, pdf, { contentType: "application/pdf" });
+confere("nutricionista envia PDF de aluno com nutrição", !eUpNutri);
+const { error: eDocNutri } = await nutri.from("documentos").insert({ aluno_id: aluno!.id, tipo: "plano_alimentar", arquivo_path: caminhoNutri });
+confere("nutricionista registra o plano alimentar", !eDocNutri);
+const { error: eOutroTipo } = await nutri.from("documentos").insert({ aluno_id: aluno!.id, tipo: "outro", arquivo_path: caminhoNutri });
+confere("nutricionista não publica outro tipo de documento", !!eOutroTipo);
+if (semNutri) {
+  const { error: eUpAlheio } = await nutri.storage.from("documentos").upload(`${semNutri.id}/x.pdf`, pdf, { contentType: "application/pdf" });
+  confere("nutricionista não envia PDF de aluno sem nutrição", !!eUpAlheio);
+  const { error: eDocAlheio } = await nutri.from("documentos").insert({ aluno_id: semNutri.id, tipo: "plano_alimentar", arquivo_path: `${semNutri.id}/x.pdf` });
+  confere("nutricionista não registra plano de aluno sem nutrição", !!eDocAlheio);
+}
+const { error: eFotoNutri } = await nutri.storage.from("fotos").upload(`${aluno!.id}/x.jpg`, png, { contentType: "image/png" });
+confere("nutricionista não mexe nas fotos", !!eFotoNutri);
+const { data: listaFotos } = await nutri.storage.from("fotos").list(aluno!.id);
+confere("nutricionista não vê as fotos", (listaFotos ?? []).length === 0);
+const { data: docsAluno } = await cliente.from("documentos").select("id");
+confere("aluno vê o plano que a nutricionista publicou", (docsAluno ?? []).length === 1);
+await admin.storage.from("documentos").remove([caminhoNutri]);
+await admin.auth.admin.deleteUser(nutriUser.user!.id);
+
 // Inativo: some tudo para o aluno (o cadastro continua no banco)
 await admin.from("alunos").update({ situacao: "inativo" }).eq("id", aluno!.id);
 const { data: inativoVe } = await cliente.from("alunos").select("id");
