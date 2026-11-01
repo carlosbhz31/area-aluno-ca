@@ -14,6 +14,7 @@ export type Pergunta = {
   se?: { pergunta: string; valor: string };
   max?: number; // limite de escolhas (múltipla) ou de fotos
   placeholder?: string;
+  imagem?: string; // figura de apoio (em /public)
 };
 
 export type Etapa = { id: string; titulo: string; texto: string; perguntas: Pergunta[]; soInicial?: boolean };
@@ -45,11 +46,12 @@ export const ETAPAS: Etapa[] = [
         texto: "Qual dessas parece mais com a sua postura de lado?",
         tipo: "opcao",
         obrigatoria: true,
+        imagem: "/anamnese/postura.png",
         opcoes: [
           "A · Alinhada",
-          "B · Ombros para frente e costas arredondadas",
-          "C · Curva acentuada na lombar (bumbum para trás)",
-          "D · Quadril para frente e costas retas",
+          "B · Costas arredondadas e lombar bem curvada",
+          "C · Costas retas, quase sem curva",
+          "D · Quadril para frente e ombros para trás",
           "Não sei dizer",
         ],
       },

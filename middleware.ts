@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./lib/env";
 
-const ROTAS_PUBLICAS = ["/entrar", "/auth", "/manifest.webmanifest", "/brand", "/icones", "/sw.js", "/api/cron"];
+const ROTAS_PUBLICAS = ["/entrar", "/auth", "/cadastro", "/manifest.webmanifest", "/brand", "/icones", "/sw.js", "/api/cron"];
 
 export async function middleware(request: NextRequest) {
   let resposta = NextResponse.next({ request });
@@ -18,10 +18,9 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Renova a sessão e confirma o usuário com o Supabase
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Renova a sessão se precisar e confere a assinatura do token (sem consulta extra ao Supabase)
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ?? null;
 
   const caminho = request.nextUrl.pathname;
   const publica = ROTAS_PUBLICAS.some((r) => caminho === r || caminho.startsWith(r + "/"));

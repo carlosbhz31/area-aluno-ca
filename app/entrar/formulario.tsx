@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/navegador";
 
-export function FormularioEntrar({ erroLink }: { erroLink: boolean }) {
+export function FormularioEntrar({ erroLink, emailInicial = "" }: { erroLink: boolean; emailInicial?: string }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailInicial);
   const [codigo, setCodigo] = useState("");
   const [etapa, setEtapa] = useState<"email" | "codigo">("email");
   const [carregando, setCarregando] = useState(false);

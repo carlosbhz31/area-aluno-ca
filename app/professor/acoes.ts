@@ -327,6 +327,32 @@ export async function darConquista(alunoId: string, broche: "meta_ciclo" | "reno
   revalidatePath(`/professor/alunos/${alunoId}`);
 }
 
+// Link de cadastro -------------------------------------------------------------
+
+export async function criarConvite(_: Resultado, f: FormData): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  const { data, error } = await supabase
+    .from("convites_cadastro")
+    .insert({
+      rotulo: texto(f, "rotulo"),
+      plano: texto(f, "plano") ?? "premium",
+      valor_contratado: numero(f, "valor_contratado"),
+      app_treino: texto(f, "app_treino"),
+      tem_nutricao: f.get("tem_nutricao") === "on",
+    })
+    .select("id")
+    .single();
+  if (error) return { erro: "Não consegui gerar o link." };
+  revalidatePath("/professor/alunos/novo");
+  return { ok: data.id };
+}
+
+export async function apagarConvite(id: string) {
+  const { supabase } = await exigirProfessor();
+  await supabase.from("convites_cadastro").delete().eq("id", id).is("usado_em", null);
+  revalidatePath("/professor/alunos/novo");
+}
+
 // Anamnese ---------------------------------------------------------------------
 
 export async function marcarAnamneseRevisada(anamneseId: string) {

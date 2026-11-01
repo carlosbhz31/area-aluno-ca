@@ -300,6 +300,62 @@ export function FormEndereco({ acao, dados }: { acao: Acao; dados: DadosPrivados
   );
 }
 
+/** Botões de copiar e mandar pelo WhatsApp um link de cadastro. */
+export function CompartilharLink({ link }: { link: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const mensagem = `Oi! Aqui está o link para você fazer seu cadastro na Área do Aluno da Consultoria: ${link}`;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <code className="min-w-0 flex-1 truncate rounded-lg bg-fundo px-3 py-2 text-xs">{link}</code>
+      <button
+        type="button"
+        className="botao-secundario !py-1.5 text-sm"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(link);
+            setCopiado(true);
+            setTimeout(() => setCopiado(false), 2000);
+          } catch {
+            window.prompt("Copia o link:", link);
+          }
+        }}
+      >
+        {copiado ? "Copiado!" : "Copiar"}
+      </button>
+      <a href={`https://wa.me/?text=${encodeURIComponent(mensagem)}`} target="_blank" rel="noopener noreferrer" className="botao !py-1.5 text-sm">WhatsApp</a>
+    </div>
+  );
+}
+
+export function FormConvite({ acao, site }: { acao: Acao; site: string }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  return (
+    <form action={enviar} className="grid gap-4 sm:grid-cols-2">
+      <Campo rotulo="Para quem é (só você vê)"><input name="rotulo" placeholder="Ex.: Ana, indicação da Bia" className="campo" /></Campo>
+      <Campo rotulo="Plano">
+        <select name="plano" className="campo" defaultValue="premium"><option value="premium">Premium</option><option value="light">Light</option></select>
+      </Campo>
+      <Campo rotulo="Valor contratado (R$)"><input name="valor_contratado" inputMode="decimal" className="campo" /></Campo>
+      <Campo rotulo="App de treino">
+        <select name="app_treino" className="campo" defaultValue="mfit"><option value="mfit">MFit</option><option value="treinoio">treino.io</option><option value="">Ainda não sei</option></select>
+      </Campo>
+      <label className="flex items-center gap-2 text-sm sm:col-span-2">
+        <input type="checkbox" name="tem_nutricao" className="size-4 accent-[var(--marca)]" /> Tem acompanhamento com nutricionista
+      </label>
+      <div className="flex items-center gap-3 sm:col-span-2">
+        <button className="botao" disabled={pendente}>{pendente ? <Loader2 className="size-4 animate-spin" /> : "Gerar link"}</button>
+        {estado?.erro && <p className="text-sm text-perigo">{estado.erro}</p>}
+      </div>
+      {estado?.ok && (
+        <div className="space-y-2 rounded-xl bg-ok-suave p-4 sm:col-span-2">
+          <p className="text-sm font-semibold text-ok">Link pronto. Vale por 14 dias e serve para uma pessoa só.</p>
+          <CompartilharLink link={`${site}/cadastro/${estado.ok}`} />
+        </div>
+      )}
+    </form>
+  );
+}
+
 /** Exclusão definitiva (LGPD). Pede o nome completo para não apagar por engano. */
 export function FormExcluirAluno({ acao, nome }: { acao: Acao; nome: string }) {
   const [estado, enviar, pendente] = useActionState(acao, undefined);

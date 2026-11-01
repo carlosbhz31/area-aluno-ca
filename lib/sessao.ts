@@ -7,13 +7,14 @@ export type Papel = "professor" | "aluno" | "nutricionista";
 
 export const PAGINA_INICIAL: Record<Papel, string> = { professor: "/professor/hoje", aluno: "/inicio", nutricionista: "/nutri" };
 
-/** Usuário logado e papel. Uma consulta por requisição. */
+/** Usuário logado e papel. Uma consulta por requisição.
+ *  O login é conferido pela assinatura do token (sem ir ao servidor de login a cada página). */
 export const sessaoAtual = cache(async () => {
   const supabase = await clienteServidor();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) return null;
+  const user = { id: claims.sub, email: (claims.email as string | undefined) ?? null };
 
   const { data: perfil } = await supabase.from("perfis").select("papel").eq("id", user.id).maybeSingle();
   return { user, papel: (perfil?.papel ?? "aluno") as Papel, supabase };

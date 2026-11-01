@@ -130,6 +130,16 @@ confere("aluno envia foto da anamnese na própria pasta", !eFotoAnam);
 const { data: anamAlheias } = await cliente.from("anamneses").select("aluno_id");
 confere("aluno só vê as próprias anamneses", (anamAlheias ?? []).every((x) => x.aluno_id === aluno!.id));
 
+// Links de cadastro: só o professor vê e cria
+const { data: convite } = await admin.from("convites_cadastro").insert({ rotulo: "teste" }).select("id").single();
+const { data: convitesAnon } = await anon.from("convites_cadastro").select("id");
+confere("sem login não lê links de cadastro", (convitesAnon ?? []).length === 0);
+const { data: convitesAluno } = await cliente.from("convites_cadastro").select("id");
+confere("aluno não lê links de cadastro", (convitesAluno ?? []).length === 0);
+const { error: eConvite } = await cliente.from("convites_cadastro").insert({ rotulo: "eu mesmo" });
+confere("aluno não cria link de cadastro", !!eConvite);
+await admin.from("convites_cadastro").delete().eq("id", convite!.id);
+
 const { data: listaNutriAluno } = await cliente.rpc("alunos_da_nutricao");
 confere("aluno não vê a lista da nutrição", (listaNutriAluno ?? []).length === 0);
 

@@ -29,6 +29,12 @@ test("múltipla respeita o limite e fotos só da pasta do aluno", () => {
   assert.deepEqual(fotosDaAnamnese({ historico: f }), [`${ALUNO}/anamnese/1.jpg`]);
 });
 
+test("postura tem a figura de apoio", () => {
+  const p = etapa("postura").perguntas.find((x) => x.id === "postura_tipo")!;
+  assert.equal(p.imagem, "/anamnese/postura.png");
+  assert.equal(p.opcoes!.length, 5);
+});
+
 test("etapa pendente aponta a primeira incompleta", () => {
   assert.equal(etapaPendente("inicial", {}), 0);
   assert.equal(etapaPendente("realinhamento", {}), 0);

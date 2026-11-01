@@ -130,6 +130,10 @@ export function FormAnamnese({ alunoId, anamneseId, tipo, respostas: iniciais, e
               {p.texto} {p.obrigatoria && <span className="text-perigo">*</span>}
             </p>
             {p.ajuda && <p className="mt-0.5 text-xs text-texto-suave">{p.ajuda}</p>}
+            {p.imagem && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.imagem} alt="Quatro posturas vistas de lado: A, B, C e D" className="mt-2 w-full rounded-xl bg-white p-2 ring-1 ring-borda" />
+            )}
             <div className="mt-2">
               <Campo p={p} r={r} mudar={mudar} fotos={fotos} enviando={enviandoFoto === p.id} enviarFotos={enviarFotos} />
             </div>
