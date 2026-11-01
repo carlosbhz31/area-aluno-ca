@@ -1,0 +1,6 @@
+node_modules/
+.env*
+!.env.example
+# dados pessoais de alunos: nunca versionar
+export-*.json
+*.export.json
