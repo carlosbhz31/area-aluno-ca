@@ -28,7 +28,7 @@ export default async function LayoutProfessor({ children }: { children: React.Re
 
       {/* Barra simples para quando abrir no celular */}
       {/* pt com safe-area: no app instalado do iPhone a barra ficava embaixo do relógio e não dava para tocar */}
-      <header className="sticky top-0 z-10 space-y-2 bg-menu px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white md:hidden">
+      <header className="sticky top-0 z-10 space-y-2 bg-menu px-4 pb-3 pt-[calc(env(safe-area-inset-top)+1rem)] text-white md:hidden">
         <div className="flex items-center gap-3">
           <Image src="/brand/ca-icone.png" alt="" width={28} height={28} />
           <Link href="/professor/hoje" className="font-bold">Painel do Professor</Link>
