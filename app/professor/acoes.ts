@@ -38,6 +38,7 @@ function dadosDoCadastro(f: FormData) {
     dia_acompanhamento: dia == null ? null : Number(dia),
     objetivo: texto(f, "objetivo"),
     nutricionista: texto(f, "nutricionista"),
+    tem_nutricao: f.get("tem_nutricao") === "on",
   };
 }
 
@@ -181,6 +182,68 @@ export async function pausarOuRetomarCiclo(alunoId: string, cicloId: string) {
     await supabase.from("ciclos").update({ pausado_desde: hoje }).eq("id", cicloId);
   }
   revalidatePath(`/professor/alunos/${alunoId}`);
+}
+
+export async function responderAcompanhamento(id: string, alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  const resposta = texto(f, "resposta");
+  if (!resposta) return { erro: "Escreve a resposta antes de enviar." };
+  const { error } = await supabase
+    .from("acompanhamentos")
+    .update({ resposta_professor: resposta, respondido_em: new Date().toISOString(), resposta_lida_em: null, atencao: f.get("atencao") === "on" })
+    .eq("id", id);
+  if (error) return { erro: "Não consegui salvar a resposta." };
+  revalidatePath("/professor/hoje");
+  revalidatePath(`/professor/alunos/${alunoId}`);
+  revalidatePath(`/professor/acompanhamentos/${id}`);
+  return { ok: "Resposta enviada. Aparece no app do aluno." };
+}
+
+/** Recado da semana: para um aluno (alunoId) ou para todos (null). Fica no Início por 7 dias. */
+export async function publicarOrientacao(alunoId: string | null, _: Resultado, f: FormData): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  const t = texto(f, "texto");
+  if (!t) return { erro: "Escreve o recado antes de publicar." };
+  const { error } = await supabase.from("orientacoes").insert({ aluno_id: alunoId, texto: t });
+  if (error) return { erro: "Não consegui publicar." };
+  revalidatePath("/professor/hoje");
+  if (alunoId) revalidatePath(`/professor/alunos/${alunoId}`);
+  return { ok: alunoId ? "Publicado no Início do aluno." : "Publicado no Início de todos." };
+}
+
+/** O PDF já subiu direto do navegador para a pasta privada do aluno; aqui só registra a versão. */
+export async function registrarDocumento(alunoId: string, caminho: string, titulo: string | null): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  if (!caminho.startsWith(`${alunoId}/`) || caminho.includes("..")) return { erro: "Arquivo inválido." };
+  const { data: ultima } = await supabase
+    .from("documentos").select("versao").eq("aluno_id", alunoId).eq("tipo", "plano_alimentar")
+    .order("versao", { ascending: false }).limit(1).maybeSingle();
+  const { error } = await supabase.from("documentos").insert({
+    aluno_id: alunoId, tipo: "plano_alimentar", titulo: titulo || "Plano alimentar", arquivo_path: caminho, versao: (ultima?.versao ?? 0) + 1,
+  });
+  if (error) return { erro: "O PDF subiu, mas não consegui registrar." };
+  // Quem recebe plano alimentar passa a ver a área de Nutrição
+  await supabase.from("alunos").update({ tem_nutricao: true }).eq("id", alunoId).eq("tem_nutricao", false);
+  revalidatePath(`/professor/alunos/${alunoId}`);
+  return { ok: "PDF publicado na área de Nutrição do aluno." };
+}
+
+export async function salvarConfiguracoes(_: Resultado, f: FormData): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  const whatsapp = texto(f, "whatsapp_carlos")?.replace(/\D/g, "") || null;
+  if (whatsapp && whatsapp.length < 10) return { erro: "WhatsApp com DDD, ex.: 31 99999-9999." };
+  const agenda = texto(f, "link_agenda");
+  if (agenda && !/^https:\/\//.test(agenda)) return { erro: "O link da agenda tem que começar com https://" };
+  const dia = Number(texto(f, "dia_padrao_acompanhamento") ?? 1);
+  const linhas = [
+    { chave: "whatsapp_carlos", valor: whatsapp },
+    { chave: "link_agenda", valor: agenda },
+    { chave: "dia_padrao_acompanhamento", valor: dia },
+  ];
+  const { error } = await supabase.from("configuracoes").upsert(linhas);
+  if (error) return { erro: "Não consegui salvar." };
+  revalidatePath("/professor/configuracoes");
+  return { ok: "Salvo." };
 }
 
 export async function adicionarAnotacao(alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {

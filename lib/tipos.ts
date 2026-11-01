@@ -22,6 +22,7 @@ export type Aluno = {
   objetivo: string | null;
   nutricionista: string | null;
   renovacao_plano_alimentar: string | null;
+  tem_nutricao: boolean;
   notion_page_id: string | null;
   origem_id: string | null;
   criado_em: string;

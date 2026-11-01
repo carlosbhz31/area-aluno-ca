@@ -58,6 +58,41 @@ await admin.from("dados_privados").upsert({ aluno_id: aluno!.id, cidade: "Teste"
 const { data: endereco } = await cliente.from("dados_privados").select("*");
 confere("aluno não vê o próprio endereço/CPF", (endereco ?? []).length === 0);
 
+// Etapa 2: acompanhamento, reavaliação e fotos
+const { data: cicloTeste } = await admin.from("ciclos").select("id").eq("aluno_id", aluno!.id).single();
+const { data: outroCiclo } = await admin.from("ciclos").select("id, aluno_id").neq("aluno_id", aluno!.id).limit(1).maybeSingle();
+
+const { error: eEnvio } = await cliente.from("acompanhamentos").insert({ aluno_id: aluno!.id, ciclo_id: cicloTeste!.id, semana: 1, respostas: { treinos_feitos: 3 } });
+confere("aluno envia o próprio acompanhamento", !eEnvio);
+const { error: eDuplo } = await cliente.from("acompanhamentos").insert({ aluno_id: aluno!.id, ciclo_id: cicloTeste!.id, semana: 1, respostas: {} });
+confere("aluno não manda dois na mesma semana", !!eDuplo);
+const { error: eAutoResposta } = await cliente.from("acompanhamentos").insert({ aluno_id: aluno!.id, ciclo_id: cicloTeste!.id, semana: 2, respostas: {}, resposta_professor: "eu mesmo" });
+confere("aluno não escreve a resposta do professor", !!eAutoResposta);
+const { data: respondeu } = await cliente.from("acompanhamentos").update({ resposta_professor: "eu mesmo" }).eq("aluno_id", aluno!.id).select();
+confere("aluno não edita acompanhamento enviado", !respondeu || respondeu.length === 0);
+if (outroCiclo) {
+  const { error: eCicloAlheio } = await cliente.from("acompanhamentos").insert({ aluno_id: aluno!.id, ciclo_id: outroCiclo.id, semana: 3, respostas: {} });
+  confere("aluno não manda acompanhamento no ciclo de outro", !!eCicloAlheio);
+  const { error: eReavAlheia } = await cliente.from("reavaliacoes").insert({ aluno_id: aluno!.id, ciclo_id: outroCiclo.id, formato: "call" });
+  confere("aluno não escolhe reavaliação no ciclo de outro", !!eReavAlheia);
+}
+const { error: eReav } = await cliente.from("reavaliacoes").insert({ aluno_id: aluno!.id, ciclo_id: cicloTeste!.id, formato: "whatsapp" });
+confere("aluno escolhe a própria reavaliação", !eReav);
+const { data: reavsVistas } = await cliente.from("reavaliacoes").select("aluno_id");
+confere("aluno só vê a própria reavaliação", (reavsVistas ?? []).every((r) => r.aluno_id === aluno!.id));
+
+const png = new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
+const { error: eFoto } = await cliente.storage.from("fotos").upload(`${aluno!.id}/teste-${Date.now()}.png`, png, { contentType: "image/png" });
+confere("aluno envia foto na própria pasta", !eFoto);
+if (outroCiclo) {
+  const { error: eFotoAlheia } = await cliente.storage.from("fotos").upload(`${outroCiclo.aluno_id}/invasao.png`, png, { contentType: "image/png" });
+  confere("aluno não envia foto na pasta de outro", !!eFotoAlheia);
+  const { data: listaAlheia } = await cliente.storage.from("fotos").list(outroCiclo.aluno_id);
+  confere("aluno não lista fotos de outro", (listaAlheia ?? []).length === 0);
+}
+const { error: ePdf } = await cliente.storage.from("documentos").upload(`${aluno!.id}/plano.pdf`, new Blob(["%PDF"], { type: "application/pdf" }), { contentType: "application/pdf" });
+confere("aluno não sobe PDF de plano alimentar", !!ePdf);
+
 // Inativo: some tudo para o aluno (o cadastro continua no banco)
 await admin.from("alunos").update({ situacao: "inativo" }).eq("id", aluno!.id);
 const { data: inativoVe } = await cliente.from("alunos").select("id");
@@ -70,6 +105,8 @@ const { data: reativado } = await cliente.from("ciclos").select("id");
 confere("ao reativar, o aluno volta a ver tudo", (reativado ?? []).length === 1);
 
 // Limpeza
+const { data: arquivos } = await admin.storage.from("fotos").list(aluno!.id);
+if (arquivos?.length) await admin.storage.from("fotos").remove(arquivos.map((a) => `${aluno!.id}/${a.name}`));
 const { data: usuario } = await cliente.auth.getUser();
 await admin.from("alunos").delete().eq("id", aluno!.id);
 if (usuario.user) await admin.auth.admin.deleteUser(usuario.user.id);

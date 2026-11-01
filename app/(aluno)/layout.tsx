@@ -4,7 +4,7 @@ import { exigirAluno } from "@/lib/sessao";
 
 export default async function LayoutAluno({ children }: { children: React.ReactNode }) {
   const s = await exigirAluno();
-  if (s.papel === "professor") redirect("/professor/alunos");
+  if (s.papel === "professor") redirect("/professor/hoje");
 
   return (
     <div className="min-h-dvh">

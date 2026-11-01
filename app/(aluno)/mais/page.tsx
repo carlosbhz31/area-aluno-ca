@@ -1,27 +1,39 @@
-import { FileText, LogOut, Salad, Smartphone, ClipboardPen, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, ClipboardPen, FileText, LogOut, Salad, Smartphone } from "lucide-react";
+import { exigirAluno } from "@/lib/sessao";
 
-const ITENS = [
-  { icone: FileText, titulo: "Meu plano", texto: "Ciclo atual, orientações da semana e contrato." },
-  { icone: Salad, titulo: "Nutrição", texto: "Seu plano alimentar em PDF." },
-  { icone: ClipboardPen, titulo: "Anamnese", texto: "Questionário inicial e de realinhamento." },
-];
+export default async function Mais() {
+  const s = await exigirAluno();
+  const { data: aluno } = await s.supabase.from("alunos").select("tem_nutricao").eq("user_id", s.user.id).maybeSingle();
 
-export default function Mais() {
+  const itens = [
+    { href: "/plano", icone: FileText, titulo: "Meu plano", texto: "Ciclo atual, datas da consultoria e recados." },
+    ...(aluno?.tem_nutricao ? [{ href: "/nutricao", icone: Salad, titulo: "Nutrição", texto: "Seu plano alimentar em PDF." }] : []),
+    { href: null, icone: ClipboardPen, titulo: "Anamnese", texto: "Questionário inicial e de realinhamento." },
+  ];
+
   return (
     <div className="mx-auto max-w-xl space-y-4 pt-2">
       <h1 className="text-2xl font-bold">Mais</h1>
 
       <ul className="cartao divide-y divide-borda">
-        {ITENS.map(({ icone: Icone, titulo, texto }) => (
-          <li key={titulo} className="flex items-center gap-3 p-4">
-            <span className="grid size-10 place-items-center rounded-xl bg-marca-suave text-marca"><Icone className="size-5" /></span>
-            <div className="flex-1">
-              <p className="font-semibold">{titulo}</p>
-              <p className="text-sm text-texto-suave">{texto}</p>
-            </div>
-            <span className="text-xs font-semibold text-texto-suave">em breve</span>
-          </li>
-        ))}
+        {itens.map(({ href, icone: Icone, titulo, texto }) => {
+          const conteudo = (
+            <>
+              <span className="grid size-10 place-items-center rounded-xl bg-marca-suave text-marca"><Icone className="size-5" /></span>
+              <span className="flex-1">
+                <span className="block font-semibold">{titulo}</span>
+                <span className="text-sm text-texto-suave">{texto}</span>
+              </span>
+              {href ? <ChevronRight className="size-5 text-texto-suave" /> : <span className="text-xs font-semibold text-texto-suave">em breve</span>}
+            </>
+          );
+          return (
+            <li key={titulo}>
+              {href ? <Link href={href} className="flex items-center gap-3 p-4">{conteudo}</Link> : <div className="flex items-center gap-3 p-4">{conteudo}</div>}
+            </li>
+          );
+        })}
       </ul>
 
       <section className="cartao p-5">

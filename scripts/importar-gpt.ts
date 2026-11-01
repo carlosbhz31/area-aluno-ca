@@ -141,6 +141,7 @@ for (const [i, a] of alunos.entries()) {
     nutricionista: str(st.nutritionist),
     renovacao_plano_alimentar: data(st.nutritionRenewal) ?? data(a.renewalDue),
     telefone: telefone(st.contactUrl),
+    tem_nutricao: st.nutrition === true || a.nutrition === true,
   };
 
   try {
@@ -156,6 +157,8 @@ for (const [i, a] of alunos.entries()) {
       const preencher = Object.fromEntries(
         Object.entries(novo).filter(([k, v]) => v != null && (existente[k] == null || existente[k] === "")),
       );
+      // tem_nutricao nasce false no banco: só liga, nunca desliga
+      if (novo.tem_nutricao && !existente.tem_nutricao) preencher.tem_nutricao = true;
       alunoId = existente.id;
       if (Object.keys(preencher).length) {
         total.atualizados++;

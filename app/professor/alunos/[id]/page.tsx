@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, CheckCircle2, Circle, ClipboardList, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
-  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock,
+  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageSquareText,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
@@ -11,8 +11,12 @@ import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR, moedaBR } from "@/lib/formato";
 import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
 import { Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
-import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, type DadosPrivados } from "@/components/professor/formularios";
-import { adicionarAnotacao, editarCiclo, mudarSituacao, novoCiclo, pausarOuRetomarCiclo, salvarCadastro, salvarDadosPrivados } from "../../acoes";
+import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, FormOrientacao, UploadPlano, type DadosPrivados } from "@/components/professor/formularios";
+import { PainelEvolucao } from "@/components/evolucao";
+import { sinaisDeAlerta, type Respostas } from "@/lib/acompanhamento";
+import {
+  adicionarAnotacao, editarCiclo, mudarSituacao, novoCiclo, pausarOuRetomarCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
+} from "../../acoes";
 
 export const metadata = { title: "Ficha do aluno · Painel do Professor" };
 
@@ -24,11 +28,12 @@ const NOME_TABELA: Record<string, string> = {
   anamneses: "Anamnese",
   acompanhamentos: "Acompanhamento",
   registros_evolucao: "Evolução",
+  reavaliacoes: "Reavaliação",
   documentos: "Documento",
   orientacoes: "Orientação",
   dados_privados: "Endereço",
 };
-const NOME_ACAO: Record<string, string> = { insert: "criado", update: "alterado", delete: "removido" };
+const NOME_ACAO: Record<string, string> = { insert: "novo", update: "alteração", delete: "remoção" };
 
 export default async function Ficha({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,14 +42,14 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   const { data: aluno } = await supabase.from("alunos").select("*").eq("id", id).maybeSingle<Aluno>();
   if (!aluno) notFound();
 
-  const [ciclos, anotacoes, contratos, anamneses, acompanhamentos, evolucao, documentos, pontos, conquistas, historico, privados] = await Promise.all([
+  const [ciclos, anotacoes, contratos, anamneses, acompanhamentos, reavaliacoes, documentos, pontos, conquistas, historico, privados] = await Promise.all([
     supabase.from("ciclos").select("*").eq("aluno_id", id).order("numero", { ascending: false }),
     supabase.from("anotacoes_internas").select("id, texto, criada_em").eq("aluno_id", id).order("criada_em", { ascending: false }).limit(20),
     supabase.from("contratos").select("id, data, assinado").eq("aluno_id", id),
     supabase.from("anamneses").select("id, tipo, status, criada_em").eq("aluno_id", id).order("criada_em", { ascending: false }),
-    supabase.from("acompanhamentos").select("id", { count: "exact", head: true }).eq("aluno_id", id),
-    supabase.from("registros_evolucao").select("data, peso").eq("aluno_id", id).order("data", { ascending: false }).limit(5),
-    supabase.from("documentos").select("id, tipo, titulo, versao, data").eq("aluno_id", id).order("data", { ascending: false }),
+    supabase.from("acompanhamentos").select("id, semana, enviado_em, respostas, resposta_professor, atencao").eq("aluno_id", id).order("enviado_em", { ascending: false }).limit(12),
+    supabase.from("reavaliacoes").select("ciclo_id, formato, escolhido_em").eq("aluno_id", id),
+    supabase.from("documentos").select("id, tipo, titulo, versao, data, arquivo_path").eq("aluno_id", id).order("data", { ascending: false }).order("versao", { ascending: false }),
     supabase.from("pontuacoes").select("pontos").eq("aluno_id", id),
     supabase.from("conquistas").select("broche", { count: "exact", head: true }).eq("aluno_id", id),
     supabase.from("registro_alteracoes").select("id, tabela, acao, em").or(`registro_id.eq.${id},depois->>aluno_id.eq.${id},antes->>aluno_id.eq.${id}`).order("em", { ascending: false }).limit(12),
@@ -64,6 +69,12 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   const alertas = alertasDoAluno(aluno, cicloAtivo);
   const totalPontos = (pontos.data ?? []).reduce((t, p) => t + p.pontos, 0);
   const listaAnamneses = anamneses.data ?? [];
+  const reavAtual = cicloAtivo ? (reavaliacoes.data ?? []).find((r) => r.ciclo_id === cicloAtivo.id) : undefined;
+  const listaDocs = documentos.data ?? [];
+  const { data: linksDocs } = listaDocs.length
+    ? await supabase.storage.from("documentos").createSignedUrls(listaDocs.map((d) => d.arquivo_path), 3600)
+    : { data: [] };
+  const linkDoc = (p: string) => linksDocs?.find((l) => l.path === p)?.signedUrl ?? undefined;
 
   const conferencia = [
     { ok: !!aluno.app_treino, texto: "Plataforma de treino definida" },
@@ -141,6 +152,12 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
                     {cicloAtivo.link_ciclo && <a className="inline-flex items-center gap-1 text-marca" href={cicloAtivo.link_ciclo} target="_blank" rel="noopener noreferrer">PDF do ciclo <ExternalLink className="size-3" /></a>}
                     {cicloAtivo.link_prontuario && <a className="inline-flex items-center gap-1 text-marca" href={cicloAtivo.link_prontuario} target="_blank" rel="noopener noreferrer">Prontuário <ExternalLink className="size-3" /></a>}
                   </div>
+                  {reavAtual && (
+                    <p className="mt-3 text-sm">
+                      <Selo tom="marca">Reavaliação: {reavAtual.formato === "call" ? "quer call" : "pelo WhatsApp"}</Selo>
+                      <span className="ml-2 text-xs text-texto-suave">escolheu em {dataBR(reavAtual.escolhido_em)}</span>
+                    </p>
+                  )}
                 </div>
                 <details>
                   <summary className="cursor-pointer text-sm font-semibold text-marca">Editar este ciclo</summary>
@@ -192,33 +209,58 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
               )}
             </Cartao>
             <Cartao>
-              <TituloCartao icone={ClipboardList}>Acompanhamentos</TituloCartao>
-              {acompanhamentos.count ? (
-                <p className="text-sm">{acompanhamentos.count} enviados</p>
-              ) : (
-                <Vazio icone={ClipboardList} titulo="Nenhum check-in ainda">Envio e resposta chegam na Etapa 2.</Vazio>
-              )}
+              <TituloCartao icone={MessageSquareText}>Recado só para este aluno</TituloCartao>
+              <FormOrientacao acao={publicarOrientacao.bind(null, id)} />
             </Cartao>
-            <Cartao>
-              <TituloCartao icone={LineChart}>Evolução</TituloCartao>
-              {evolucao.data?.length ? (
-                <ul className="space-y-1 text-sm">
-                  {evolucao.data.map((r) => <li key={r.data} className="flex justify-between"><span>{dataBR(r.data)}</span><span className="font-semibold">{r.peso ? `${r.peso} kg` : "—"}</span></li>)}
-                </ul>
-              ) : (
-                <Vazio icone={LineChart} titulo="Sem registros">Peso, medidas e fotos chegam na Etapa 2.</Vazio>
-              )}
-            </Cartao>
-            <Cartao>
-              <TituloCartao icone={Salad}>Plano alimentar e documentos</TituloCartao>
-              {documentos.data?.length ? (
-                <ul className="space-y-1 text-sm">
-                  {documentos.data.map((d) => <li key={d.id} className="flex justify-between"><span>{d.titulo ?? d.tipo} v{d.versao}</span><span>{dataBR(d.data)}</span></li>)}
-                </ul>
-              ) : (
-                <Vazio icone={FileText} titulo="Nenhum PDF">Upload do plano alimentar chega na Etapa 2.</Vazio>
-              )}
-            </Cartao>
+          </div>
+
+          <Cartao>
+            <TituloCartao icone={ClipboardList}>Acompanhamentos</TituloCartao>
+            {acompanhamentos.data?.length ? (
+              <ul className="-mx-2 divide-y divide-borda">
+                {acompanhamentos.data.map((a) => {
+                  const sinais = sinaisDeAlerta(a.respostas as Partial<Respostas>);
+                  return (
+                    <li key={a.id}>
+                      <Link href={`/professor/acompanhamentos/${a.id}`} className="flex flex-wrap items-center gap-2 rounded-lg px-2 py-2.5 text-sm hover:bg-fundo">
+                        <span className="font-semibold">{a.semana ? `Semana ${a.semana}` : "Acompanhamento"}</span>
+                        <span className="text-texto-suave">{dataBR(a.enviado_em)}</span>
+                        <span className="ml-auto flex flex-wrap gap-1">
+                          {a.atencao && <Selo tom="perigo">Atenção</Selo>}
+                          {sinais.map((s) => <Selo key={s} tom="alerta">{s}</Selo>)}
+                          {a.resposta_professor ? <Selo tom="ok">Respondido</Selo> : <Selo tom="marca">Responder</Selo>}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <Vazio icone={ClipboardList} titulo="Nenhum acompanhamento ainda">Quando o aluno enviar pelo app, aparece aqui e na tela Hoje.</Vazio>
+            )}
+          </Cartao>
+
+          <Cartao>
+            <TituloCartao icone={Salad} acao={!aluno.tem_nutricao && <span className="text-xs text-texto-suave">Área de Nutrição desligada para este aluno</span>}>
+              Plano alimentar
+            </TituloCartao>
+            {listaDocs.filter((d) => d.tipo === "plano_alimentar").length > 0 && (
+              <ul className="mb-4 space-y-1 text-sm">
+                {listaDocs.filter((d) => d.tipo === "plano_alimentar").map((d) => (
+                  <li key={d.id} className="flex justify-between">
+                    <a href={linkDoc(d.arquivo_path)} target="_blank" rel="noopener noreferrer" className="text-marca">{d.titulo ?? "Plano alimentar"} · v{d.versao}</a>
+                    <span className="text-texto-suave">{dataBR(d.data)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <UploadPlano alunoId={id} registrar={registrarDocumento.bind(null, id)} />
+            <p className="mt-2 text-xs text-texto-suave">Publicar um PDF liga a área de Nutrição para o aluno.</p>
+          </Cartao>
+
+          <div>
+            <h2 className="rotulo mb-3 flex items-center gap-2"><LineChart className="size-4" /> Evolução</h2>
+            <PainelEvolucao supabase={supabase} alunoId={id} />
           </div>
         </div>
 
@@ -261,7 +303,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
               <ul className="space-y-2 text-sm">
                 {historico.data.map((h) => (
                   <li key={h.id} className="flex justify-between gap-2">
-                    <span>{NOME_TABELA[h.tabela] ?? h.tabela} {NOME_ACAO[h.acao] ?? h.acao}</span>
+                    <span>{NOME_TABELA[h.tabela] ?? h.tabela} · {NOME_ACAO[h.acao] ?? h.acao}</span>
                     <span className="shrink-0 text-texto-suave">{dataBR(h.em)}</span>
                   </li>
                 ))}

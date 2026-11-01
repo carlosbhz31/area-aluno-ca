@@ -71,6 +71,10 @@ export function FormCadastro({ acao, aluno, novo = false }: { acao: Acao; aluno?
       </Campo>
       <Campo rotulo="Link individual do app (opcional)"><input name="app_treino_link" type="url" defaultValue={a?.app_treino_link ?? ""} className="campo" /></Campo>
       <Campo rotulo="Nutricionista"><input name="nutricionista" defaultValue={a?.nutricionista ?? ""} className="campo" /></Campo>
+      <label className="flex items-center gap-2 self-end pb-3 text-sm">
+        <input type="checkbox" name="tem_nutricao" defaultChecked={a?.tem_nutricao ?? false} className="size-4 accent-[var(--marca)]" />
+        Tem plano alimentar (mostra a área de Nutrição)
+      </label>
       {novo && <Campo rotulo="Início do 1º ciclo (opcional)"><input name="inicio_ciclo" type="date" className="campo" /></Campo>}
       <Campo rotulo="Objetivo principal" largo><textarea name="objetivo" rows={2} defaultValue={a?.objetivo ?? ""} className="campo" /></Campo>
       <Rodape pendente={pendente} estado={estado} rotulo={novo ? "Cadastrar aluno" : "Salvar cadastro"} />
@@ -88,6 +92,102 @@ export function FormCiclo({ acao, ciclo }: { acao: Acao; ciclo?: Ciclo | null })
       <Campo rotulo="Link do PDF do ciclo (Drive)"><input name="link_ciclo" type="url" defaultValue={ciclo?.link_ciclo ?? ""} className="campo" /></Campo>
       <Campo rotulo="Link do prontuário (Drive)"><input name="link_prontuario" type="url" defaultValue={ciclo?.link_prontuario ?? ""} className="campo" /></Campo>
       <Rodape pendente={pendente} estado={estado} rotulo={ciclo ? "Salvar ciclo" : "Criar ciclo"} />
+    </form>
+  );
+}
+
+export function FormResposta({ acao, resposta, atencao }: { acao: Acao; resposta: string | null; atencao: boolean }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  return (
+    <form action={enviar} className="space-y-3">
+      <textarea name="resposta" rows={7} defaultValue={resposta ?? ""} placeholder="Sua resposta. Curta e direta, como no WhatsApp." className="campo" />
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="atencao" defaultChecked={atencao} className="size-4 accent-[var(--marca)]" />
+        Marcar como ponto de atenção
+      </label>
+      <Rodape pendente={pendente} estado={estado} rotulo={resposta ? "Atualizar resposta" : "Enviar resposta"} />
+    </form>
+  );
+}
+
+export function FormOrientacao({ acao, paraTodos = false }: { acao: Acao; paraTodos?: boolean }) {
+  const [estado, setEstado] = useState<Resultado>(undefined);
+  const [pendente, setPendente] = useState(false);
+  const [rodada, setRodada] = useState(0);
+  return (
+    <form
+      key={rodada}
+      action={async (f) => {
+        setPendente(true);
+        const r = await acao(undefined, f);
+        setEstado(r);
+        setPendente(false);
+        if (r?.ok) setRodada((n) => n + 1);
+      }}
+      className="space-y-2"
+    >
+      <textarea name="texto" rows={3} placeholder={paraTodos ? "Recado para todos os alunos. Ex.: semana de feriado, treino pode ser mais curto." : "Recado só para este aluno."} className="campo" />
+      <div className="flex items-center gap-3">
+        <button className="botao-secundario" disabled={pendente}>{pendente ? <Loader2 className="size-4 animate-spin" /> : "Publicar no Início"}</button>
+        {estado?.erro && <p className="text-sm text-perigo">{estado.erro}</p>}
+        {estado?.ok && <p className="text-sm text-ok">{estado.ok}</p>}
+      </div>
+      <p className="text-xs text-texto-suave">Fica em destaque no Início por 7 dias e depois vai para "Meu plano".</p>
+    </form>
+  );
+}
+
+export function UploadPlano({ alunoId, registrar }: { alunoId: string; registrar: (caminho: string, titulo: string | null) => Promise<Resultado> }) {
+  const [estado, setEstado] = useState<Resultado>(undefined);
+  const [pendente, setPendente] = useState(false);
+  const [rodada, setRodada] = useState(0);
+
+  async function enviar(f: FormData) {
+    const arquivo = f.get("arquivo");
+    if (!(arquivo instanceof File) || arquivo.size === 0) return setEstado({ erro: "Escolhe o PDF." });
+    if (arquivo.type !== "application/pdf") return setEstado({ erro: "Tem que ser PDF." });
+    setPendente(true);
+    const { clienteNavegador } = await import("@/lib/supabase/navegador");
+    const caminho = `${alunoId}/plano-alimentar-${Date.now()}.pdf`;
+    const { error } = await clienteNavegador().storage.from("documentos").upload(caminho, arquivo, { contentType: "application/pdf" });
+    const r = error ? { erro: "Não consegui enviar o PDF." } : await registrar(caminho, String(f.get("titulo") ?? "").trim() || null);
+    setEstado(r);
+    setPendente(false);
+    if (r?.ok) setRodada((n) => n + 1);
+  }
+
+  return (
+    <form key={rodada} action={enviar} className="space-y-3">
+      <input name="titulo" placeholder="Título (opcional). Ex.: Plano alimentar — novembro" className="campo" />
+      <input name="arquivo" type="file" accept="application/pdf" className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-marca-suave file:px-3 file:py-2 file:font-semibold file:text-marca" />
+      <div className="flex items-center gap-3">
+        <button className="botao-secundario" disabled={pendente}>{pendente ? <Loader2 className="size-4 animate-spin" /> : "Publicar PDF"}</button>
+        {estado?.erro && <p className="text-sm text-perigo">{estado.erro}</p>}
+        {estado?.ok && <p className="text-sm text-ok">{estado.ok}</p>}
+      </div>
+    </form>
+  );
+}
+
+export function FormConfiguracoes({ acao, valores }: { acao: Acao; valores: { whatsapp: string | null; agenda: string | null; dia: number } }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  return (
+    <form action={enviar} className="grid gap-4 sm:grid-cols-2">
+      <Campo rotulo="Seu WhatsApp (com DDD)">
+        <input name="whatsapp_carlos" inputMode="tel" defaultValue={valores.whatsapp ?? ""} placeholder="31 99999-9999" className="campo" />
+      </Campo>
+      <Campo rotulo="Dia padrão do acompanhamento">
+        <select name="dia_padrao_acompanhamento" defaultValue={valores.dia} className="campo">
+          {DIAS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+        </select>
+      </Campo>
+      <Campo rotulo="Link da sua agenda para calls (opcional)" largo>
+        <input name="link_agenda" type="url" defaultValue={valores.agenda ?? ""} placeholder="https://calendly.com/... ou link de agendamento do Google" className="campo" />
+      </Campo>
+      <p className="text-xs text-texto-suave sm:col-span-2">
+        Na semana 7, quem escolhe "call" abre esse link. Sem link, abre o seu WhatsApp com a mensagem pronta.
+      </p>
+      <Rodape pendente={pendente} estado={estado} />
     </form>
   );
 }

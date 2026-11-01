@@ -19,14 +19,12 @@ export default function LinkDeAcesso() {
       const busca = new URLSearchParams(window.location.search);
       let ok = false;
 
-      // O cliente já lê os tokens do "#" sozinho ao iniciar; getSession espera essa leitura.
-      const { data: inicial } = await supabase.auth.getSession();
-      if (inicial.session) {
-        ok = true;
-      } else if (hash.get("access_token") && hash.get("refresh_token")) {
+      // O link novo sempre manda: troca qualquer sessão antiga guardada neste navegador.
+      if (hash.get("access_token") && hash.get("refresh_token")) {
         const { error } = await supabase.auth.setSession({ access_token: hash.get("access_token")!, refresh_token: hash.get("refresh_token")! });
         if (error) console.error("login:", error.message);
         ok = !error;
+        if (!ok) ok = !!(await supabase.auth.getSession()).data.session; // o cliente já pode ter lido o "#" sozinho
       } else if (busca.get("token_hash")) {
         ok = !(await supabase.auth.verifyOtp({ token_hash: busca.get("token_hash")!, type: (busca.get("type") ?? "email") as EmailOtpType })).error;
       } else if (busca.get("code")) {

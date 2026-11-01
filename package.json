@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test lib/*.test.ts",
+    "test": "node --import tsx --test lib/ciclo.test.ts lib/acompanhamento.test.ts",
     "testar:seguranca": "tsx --env-file=.env.local scripts/testar-seguranca.ts",
     "professor":"tsx --env-file=.env.local scripts/definir-professor.ts",
     "importar:gpt": "tsx --env-file=.env.local scripts/importar-gpt.ts",

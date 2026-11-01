@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarDays, Dumbbell, Flag, MessageSquareText, Shield, Sparkles, Trophy } from "lucide-react";
+import { CalendarDays, ChevronRight, ClipboardList, Dumbbell, Flag, MessageCircleReply, MessageSquareText, Shield, Sparkles, Trophy } from "lucide-react";
+import { CartaoReavaliacao } from "./aluno/cartao-reavaliacao";
 import type { PainelAluno } from "@/lib/dados-aluno";
 import { situacaoDoCiclo, emRetaFinal, hojeEmBH, type SituacaoCiclo } from "@/lib/ciclo";
 import { ligaPorPontos } from "@/lib/ligas";
@@ -9,26 +10,34 @@ import { Barra, Cartao, TituloCartao, Vazio } from "./ui";
 import { BotaoTreino } from "./botao-treino";
 import { IconeBroche } from "./icone-broche";
 
-function proximoPasso(p: PainelAluno, s: SituacaoCiclo, hoje: string) {
-  const diaHoje = new Date(hoje + "T12:00:00Z").getUTCDay();
+type Passo = { titulo: string; texto: string; link?: { href: string; rotulo: string } };
+
+function proximoPasso(p: PainelAluno, s: SituacaoCiclo): Passo {
   const nomeApp = p.aluno.app_treino ? p.apps[p.aluno.app_treino].nome : null;
+  const { prazo } = p;
 
   if (s.tipo === "sem_ciclo") return { titulo: "Seu ciclo está sendo montado", texto: "Assim que eu fechar seu treino, ele aparece aqui com as datas." };
   if (s.tipo === "nao_iniciado")
     return { titulo: `Seu ciclo começa em ${s.diasParaComecar} ${s.diasParaComecar === 1 ? "dia" : "dias"}`, texto: "Instala o app de treino e dá uma olhada nos exercícios antes." };
-  if (s.tipo === "encerrado") return { titulo: "Ciclo fechado", texto: "Hora da reavaliação. Me manda suas fotos e vamos montar o próximo." };
+  if (s.tipo === "encerrado") return { titulo: "Ciclo fechado", texto: "Hora da reavaliação. Escolhe aqui embaixo como prefere fazer." };
   if (s.pausado) return { titulo: "Ciclo pausado", texto: "Quando voltar, me avisa que eu retomo daqui." };
+  if (prazo.tipo === "ativo" && !p.enviadoNaSemana && (prazo.ehHoje || prazo.diasAtraso > 0)) {
+    return {
+      titulo: prazo.diasAtraso > 0 ? "Seu acompanhamento ficou pra trás" : "Hoje é dia de acompanhamento",
+      texto: "Me conta como foi a semana. Leva 1 minuto.",
+      link: { href: "/acompanhamento", rotulo: "Enviar acompanhamento" },
+    };
+  }
   if (emRetaFinal(s))
     return { titulo: `Semana ${s.semana}: reta final`, texto: "A reavaliação está chegando. Anota suas cargas e já separa as fotos." };
-  if (p.aluno.dia_acompanhamento === diaHoje)
-    return { titulo: "Hoje é dia de acompanhamento", texto: "Me conta como foi a semana: treinos, sono, energia e dúvidas." };
   return { titulo: "Treino de hoje", texto: nomeApp ? `Abre o ${nomeApp} e segue a ficha do dia.` : "Seu treino está com o Carlos. Já já ele aparece aqui." };
 }
 
 export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; preview?: boolean }) {
   const hoje = hojeEmBH();
   const s = situacaoDoCiclo(painel.ciclo, hoje);
-  const passo = proximoPasso(painel, s, hoje);
+  const passo = proximoPasso(painel, s);
+  const mostrarReavaliacao = (emRetaFinal(s) && s.tipo === "em_andamento" && !s.pausado) || s.tipo === "encerrado";
   const liga = ligaPorPontos(painel.pontos, painel.faixas);
   const app = painel.aluno.app_treino ? painel.apps[painel.aluno.app_treino] : null;
 
@@ -38,6 +47,21 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
         <p className="text-sm text-texto-suave">{saudacao()},</p>
         <h1 className="text-2xl font-bold">{primeiroNome(painel.aluno.nome)}</h1>
       </header>
+
+      {painel.respostaNova && (
+        <Link href="/acompanhamento" className="flex items-center gap-3 rounded-2xl bg-marca p-4 text-white">
+          <MessageCircleReply className="size-6 shrink-0" />
+          <span className="flex-1">
+            <span className="block font-bold">Respondi seu acompanhamento</span>
+            <span className="text-sm text-white/80">{painel.respostaNova.semana ? `Semana ${painel.respostaNova.semana}. ` : ""}Toca pra ler.</span>
+          </span>
+          <ChevronRight className="size-5" />
+        </Link>
+      )}
+
+      {mostrarReavaliacao && (
+        <CartaoReavaliacao escolha={painel.reavaliacao} contato={painel.contato} primeiroNome={primeiroNome(painel.aluno.nome)} preview={preview} />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Semana do ciclo */}
@@ -75,7 +99,13 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
           </p>
           <p className="mt-2 text-xl font-bold">{passo.titulo}</p>
           <p className="mt-1 text-sm text-white/80">{passo.texto}</p>
-          {app && s.tipo !== "encerrado" && <BotaoTreino app={app} linkIndividual={painel.aluno.app_treino_link} className="mt-4" />}
+          {passo.link ? (
+            <Link href={passo.link.href} className="botao mt-4 w-full !py-4 text-base">
+              <ClipboardList className="size-5" /> {passo.link.rotulo}
+            </Link>
+          ) : (
+            app && s.tipo !== "encerrado" && <BotaoTreino app={app} linkIndividual={painel.aluno.app_treino_link} className="mt-4" />
+          )}
         </section>
       </div>
 
@@ -140,9 +170,7 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
         )}
       </Cartao>
 
-      {painel.aluno.dia_acompanhamento != null && (
-        <p className="pb-2 text-center text-xs text-texto-suave">Seu dia de acompanhamento: {DIAS[painel.aluno.dia_acompanhamento].toLowerCase()}.</p>
-      )}
+      <p className="pb-2 text-center text-xs text-texto-suave">Seu dia de acompanhamento: {DIAS[painel.diaAcompanhamento].toLowerCase()}.</p>
     </div>
   );
 }
