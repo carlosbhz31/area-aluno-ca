@@ -15,6 +15,14 @@ export type UltimaVez = { data: string; execucaoId: string; series: { numero: nu
 type Valor = { carga: string; reps: string };
 const br = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
+/** Selo da linha recolhida: a série mais pesada da última vez ("92,5 kg · 8 reps"). */
+function melhorDaUltima(ult: UltimaVez, e: ExercicioPlano) {
+  const s = [...ult.series].sort((a, b) => (b.carga ?? 0) - (a.carga ?? 0))[0];
+  if (!s) return "";
+  const qtd = e.metrica === "segundos" ? `${s.segundos ?? "-"} s` : `${s.reps ?? "-"} reps`;
+  return s.carga != null ? `${br(s.carga)} kg · ${qtd}` : qtd;
+}
+
 /** Execução do treino: marca séries, guarda carga e reps e cuida da pausa.
  *  O cronômetro da tela é só visual; quem garante o aviso com a tela bloqueada é o servidor (push). */
 export function ExecucaoTreino(p: {
@@ -165,6 +173,15 @@ export function ExecucaoTreino(p: {
   const totalValidas = todas.filter((s) => !s.aquecimento).length;
   const proximaGeral = todas.find((s) => !feitas.has(chaveSerie(s)));
 
+  // Só um exercício aberto por vez: o que o aluno escolheu ou, se nenhum, o próximo da ordem
+  const [aberto, setAberto] = useState<string | null>(null);
+  const abertoId = aberto ?? proximaGeral?.exercicioId ?? null;
+  const abertoAntes = useRef(abertoId);
+  useEffect(() => {
+    if (abertoId && abertoAntes.current !== abertoId) document.getElementById(`ex-${abertoId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    abertoAntes.current = abertoId;
+  }, [abertoId]);
+
   function iniciarPausaLocal(fimServidor: string | undefined, agoraServ: string | undefined, segundos: number) {
     if (agoraServ) desvio.current = Date.parse(agoraServ) - Date.now();
     if (!segundos) return;
@@ -190,6 +207,9 @@ export function ExecucaoTreino(p: {
 
     const novas = new Set(feitas).add(k);
     setFeitas(novas);
+    // Terminou o exercício: abre o próximo da ordem; senão continua neste
+    const acabou = todas.every((x) => x.exercicioId !== e.id || novas.has(chaveSerie(x)));
+    setAberto(acabou ? null : e.id);
     // A carga usada passa para as próximas séries do exercício (o aluno só muda se trocar o peso)
     const cargaUsada = valores[k]?.carga;
     if (cargaUsada && !s.aquecimento) {
@@ -267,16 +287,37 @@ export function ExecucaoTreino(p: {
       {plano.map((e, i) => {
         const ult = p.ultimaVez[e.id];
         const series = todas.filter((s) => s.exercicioId === e.id);
+        const feitasDoEx = series.filter((s) => !s.aquecimento && feitas.has(chaveSerie(s))).length;
         const completo = series.every((s) => feitas.has(chaveSerie(s)));
-        const atual = proximaGeral?.exercicioId === e.id;
-        return (
-          <section key={e.id} id={`ex-${e.id}`} className={`cartao p-4 ${atual ? "border-marca" : ""} ${completo ? "opacity-75" : ""}`}>
-            <div className="flex items-start gap-3">
-              <span className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${completo ? "bg-ok text-white" : "bg-marca-suave text-marca"}`}>
-                {completo ? <Check className="size-4" /> : i + 1}
+        const proximaDoEx = series.find((s) => !feitas.has(chaveSerie(s)));
+        const marca = (
+          <span className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${completo ? "bg-ok text-white" : "bg-marca-suave text-marca"}`}>
+            {completo ? <Check className="size-4" /> : i + 1}
+          </span>
+        );
+
+        // Recolhido: uma linha com o essencial; toca para abrir
+        if (e.id !== abertoId) {
+          return (
+            <button key={e.id} id={`ex-${e.id}`} onClick={() => setAberto(e.id)} className={`cartao flex w-full scroll-mt-4 items-center gap-3 p-3 text-left ${completo ? "opacity-70" : ""}`}>
+              {marca}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">{e.nome}</span>
+                <span className="block text-xs text-texto-suave">
+                  {completo ? "Feito" : feitasDoEx ? `${feitasDoEx} de ${e.series} séries` : `${e.series} × ${alvo(e)}${e.metrica === "reps" ? " reps" : ""}`}
+                </span>
               </span>
+              {ult && !completo && <span className="shrink-0 rounded-full bg-marca-suave px-2.5 py-1 text-xs font-semibold text-marca">{melhorDaUltima(ult, e)}</span>}
+            </button>
+          );
+        }
+
+        return (
+          <section key={e.id} id={`ex-${e.id}`} className="cartao scroll-mt-4 border-marca p-4">
+            <div className="flex items-start gap-3">
+              {marca}
               <div className="min-w-0 flex-1">
-                <h2 className="font-semibold leading-snug">{e.nome}</h2>
+                <h2 className="text-lg font-bold leading-snug">{e.nome}</h2>
                 <p className="text-sm text-texto-suave">
                   {e.series} × {alvo(e)}{e.metrica === "reps" ? " reps" : ""} · pausa {tempo(e.pausa)}
                   {e.equipamento ? ` · ${e.equipamento}` : ""}
@@ -287,12 +328,12 @@ export function ExecucaoTreino(p: {
                   </p>
                 )}
               </div>
-              {e.video_url && (
-                <a href={e.video_url} target="_blank" rel="noopener noreferrer" className="botao-secundario !px-2.5 !py-1.5 text-xs" aria-label="Ver vídeo do exercício">
-                  <Video className="size-4" />
-                </a>
-              )}
             </div>
+            {e.video_url && (
+              <a href={e.video_url} target="_blank" rel="noopener noreferrer" className="botao-secundario mt-3 w-full !py-2 text-sm">
+                <Video className="size-4" /> Ver vídeo do exercício
+              </a>
+            )}
             {e.observacoes && <p className="mt-2 whitespace-pre-line rounded-lg bg-fundo p-2 text-sm">{e.observacoes}</p>}
 
             <div className="mt-3 space-y-2">
@@ -321,6 +362,11 @@ export function ExecucaoTreino(p: {
                 );
               })}
             </div>
+            {proximaDoEx && (
+              <button onClick={() => alternar(proximaDoEx, e)} disabled={salvando.has(chaveSerie(proximaDoEx))} className="botao mt-3 w-full !py-3.5 text-base">
+                <Check className="size-5" /> Concluir {proximaDoEx.aquecimento ? `aquecimento ${proximaDoEx.numero}` : `série ${proximaDoEx.numero}`}
+              </button>
+            )}
           </section>
         );
       })}
