@@ -164,6 +164,18 @@ export function ExecucaoTreino(p: {
 
     const novas = new Set(feitas).add(k);
     setFeitas(novas);
+    // A carga usada passa para as próximas séries do exercício (o aluno só muda se trocar o peso)
+    const cargaUsada = valores[k]?.carga;
+    if (cargaUsada && !s.aquecimento) {
+      setValores((x) => {
+        const n = { ...x };
+        for (let i = s.numero + 1; i <= e.series; i++) {
+          const kk = chaveSerie({ exercicioId: e.id, numero: i, aquecimento: false });
+          if (!novas.has(kk)) n[kk] = { ...(n[kk] ?? { reps: "" }), carga: cargaUsada };
+        }
+        return n;
+      });
+    }
     const prox = proximaSerie(plano, novas, s);
     const pausa = s.aquecimento || !prox ? 0 : e.pausa;
     iniciarPausaLocal(undefined, undefined, pausa); // já começa a contar; o servidor confirma em seguida
