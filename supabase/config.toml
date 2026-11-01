@@ -12,14 +12,18 @@ jwt_expiry = 3600
 enable_signup = false
 
 [auth.email]
-enable_signup = false
+# Atenção: aqui "enable_signup" liga o login por e-mail. Tem que ficar true.
+# Quem impede cadastro aberto é o enable_signup = false da seção [auth].
+enable_signup = true
 enable_confirmations = false
 otp_length = 6
 otp_expiry = 3600
 max_frequency = "60s"
 
-# O plano grátis só permite trocar o modelo do e-mail com SMTP próprio (Resend + domínio).
-# Quando houver domínio, descomente e rode `npx supabase config push`.
-# [auth.email.template.magic_link]
-# subject = "Seu acesso à Área do Aluno CA"
-# content_path = "./supabase/templates/link-magico.html"
+# Modelo próprio do e-mail (exige SMTP próprio: hoje o Gmail do Carlos, configurado no painel do Supabase;
+# a senha de app fica só lá, nunca neste arquivo).
+[auth.email.template.magic_link]
+subject = "Seu acesso à Área do Aluno CA"
+content_path = "./supabase/templates/link-magico.html"
+
+# Limite de e-mails por hora: ajustado no painel (Authentication > Rate Limits); o config push não gerencia.
