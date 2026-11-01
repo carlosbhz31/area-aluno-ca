@@ -90,11 +90,11 @@ begin
                            'registros_evolucao', 'documentos', 'pontuacoes', 'conquistas']
   loop
     execute format(
-      'create policy %L on public.%I for select to authenticated
+      'create policy %I on public.%I for select to authenticated
          using (aluno_id = public.meu_aluno_id())',
       t || ': aluno lê as próprias', t);
     execute format(
-      'create policy %L on public.%I for all to authenticated
+      'create policy %I on public.%I for all to authenticated
          using (public.eh_professor()) with check (public.eh_professor())',
       t || ': professor tudo', t);
   end loop;

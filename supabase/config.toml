@@ -1,0 +1,25 @@
+# Configuração do Supabase versionada. Aplicar no projeto: npx supabase config push
+
+project_id = "area-aluno-ca"
+
+[auth]
+enabled = true
+# Endereço principal do app (usado nos links do e-mail)
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**", "https://*.vercel.app/**"]
+jwt_expiry = 3600
+# Só entra quem o professor cadastrou
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+otp_length = 6
+otp_expiry = 3600
+max_frequency = "60s"
+
+# O plano grátis só permite trocar o modelo do e-mail com SMTP próprio (Resend + domínio).
+# Quando houver domínio, descomente e rode `npx supabase config push`.
+# [auth.email.template.magic_link]
+# subject = "Seu acesso à Área do Aluno CA"
+# content_path = "./supabase/templates/link-magico.html"

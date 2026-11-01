@@ -1,0 +1,14 @@
+<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #121113;">
+  <p style="font-size: 12px; letter-spacing: 3px; color: #5f5c63; margin: 0;">CONSULTORIA PREMIUM CA</p>
+  <h2 style="margin: 8px 0 16px;">Seu acesso à Área do Aluno</h2>
+  <p>Toca no botão para entrar:</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=email"
+       style="background: #4423ed; color: #ffffff; padding: 14px 22px; border-radius: 12px; text-decoration: none; font-weight: bold;">
+      Entrar na Área do Aluno
+    </a>
+  </p>
+  <p>Se estiver usando o app instalado no celular, digita este código lá:</p>
+  <p style="font-size: 28px; font-weight: bold; letter-spacing: 6px;">{{ .Token }}</p>
+  <p style="font-size: 12px; color: #5f5c63;">O link e o código valem por 1 hora. Se não foi você que pediu, pode ignorar este e-mail.</p>
+</div>

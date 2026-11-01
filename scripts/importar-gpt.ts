@@ -94,8 +94,9 @@ function pesos(entries: unknown): { data: string; peso: number }[] {
   return lista
     .map((e) => {
       const tipo = String(e.type ?? e.kind ?? e.metric ?? "").toLowerCase();
-      const valor = Number(e.weight ?? e.peso ?? (/(weight|peso)/.test(tipo) ? e.value : undefined));
-      const d = data(e.date ?? e.data ?? e.createdAt ?? e.at);
+      const carga = obj(e.payload); // formato do export: { kind: "weight", payload: { date, kg } }
+      const valor = Number(carga.kg ?? e.weight ?? e.peso ?? (/(weight|peso)/.test(tipo) ? e.value : undefined));
+      const d = data(carga.date ?? e.date ?? e.data ?? e.createdAt ?? e.at);
       return Number.isFinite(valor) && valor > 20 && valor < 400 && d ? { data: d, peso: valor } : null;
     })
     .filter((x): x is { data: string; peso: number } => x !== null);

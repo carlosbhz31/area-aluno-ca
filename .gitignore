@@ -12,3 +12,4 @@ export-*.json
 dados/
 *.csv
 .claude/
+supabase/.temp/
