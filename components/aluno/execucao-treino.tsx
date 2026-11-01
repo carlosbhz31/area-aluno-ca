@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Flag, Loader2, Minus, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX } from "lucide-react";
 import { pararPausa, tocarPausa } from "@/lib/som-pausa";
 import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
 import { AtivarAvisos } from "./ativar-avisos";
+import { VideoSobreposto } from "./video-sobreposto";
 import { Barra } from "../ui";
-import { alvo, blocos, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave } from "@/lib/treino";
+import { alvo, blocos, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave } from "@/lib/treino";
 
 export type SerieSalva = { exercicio_id: string; numero: number; aquecimento: boolean; carga: number | null; reps: number | null; segundos: number | null };
 export type UltimaVez = { data: string; execucaoId: string; series: { numero: number; carga: number | null; reps: number | null; segundos: number | null }[] };
@@ -69,6 +70,8 @@ export function ExecucaoTreino(p: {
   const som = useRef<HTMLAudioElement | null>(null);
   const [comSom, setComSom] = useState(true);
   const tocou = useRef(true);
+  const [video, setVideo] = useState<{ url: string; titulo: string } | null>(null);
+  const fecharVideo = useCallback(() => setVideo(null), []);
 
   const [feitas, setFeitas] = useState(() => new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento }))));
   const [valores, setValores] = useState<Record<string, Valor>>(() => {
@@ -341,11 +344,16 @@ export function ExecucaoTreino(p: {
                 )}
               </div>
             </div>
-            {e.video_url && (
+            {e.video_url && (videoYoutube(e.video_url) ? (
+              <button onClick={() => setVideo({ url: e.video_url!, titulo: e.nome })} className="botao-secundario mt-3 w-full !py-2 text-sm">
+                <Video className="size-4" /> Ver vídeo do exercício
+              </button>
+            ) : (
+              // link que não é do YouTube: abre fora, como antes
               <a href={e.video_url} target="_blank" rel="noopener noreferrer" className="botao-secundario mt-3 w-full !py-2 text-sm">
                 <Video className="size-4" /> Ver vídeo do exercício
               </a>
-            )}
+            ))}
             {e.observacoes && <p className="mt-2 whitespace-pre-line rounded-lg bg-fundo p-2 text-sm">{e.observacoes}</p>}
 
             <div className="mt-3 space-y-2">
@@ -449,6 +457,7 @@ export function ExecucaoTreino(p: {
         </div>
       )}
       <audio ref={som} playsInline preload="none" />
+      {video && <VideoSobreposto url={video.url} titulo={video.titulo} fechar={fecharVideo} />}
     </div>
   );
 }

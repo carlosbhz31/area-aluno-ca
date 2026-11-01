@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alvo, blocos, chaveSerie, grupoPadrao, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
+import { alvo, blocos, chaveSerie, grupoPadrao, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
 
 const semanas = [
   { series: 3, min: 12, max: 15, pausa: 60 },

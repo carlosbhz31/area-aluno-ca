@@ -107,6 +107,22 @@ export function textoProxima(plano: ExercicioPlano[], s: SerieChave | null) {
   return `${e.nome}: ${qual} (${alvo(e)}${e.metrica === "reps" ? " reps" : ""})`;
 }
 
+/** Id do vídeo do YouTube (watch?v=, youtu.be/, shorts/, embed/, live/). null se não for do YouTube. */
+export function videoYoutube(url: string | null | undefined): { id: string; vertical: boolean } | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    const host = u.hostname.replace(/^(www\.|m\.)/, "");
+    let id: string | null = null;
+    if (host === "youtu.be") id = u.pathname.slice(1).split("/")[0];
+    else if (host === "youtube.com" || host === "youtube-nocookie.com" || host === "music.youtube.com")
+      id = u.searchParams.get("v") ?? u.pathname.match(/^\/(?:shorts|embed|live|v)\/([^/?#]+)/)?.[1] ?? null;
+    return id && /^[\w-]{6,20}$/.test(id) ? { id, vertical: u.pathname.startsWith("/shorts/") } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Converte "36,25" em 36.25; vazio ou inválido vira null. */
 export function numero(v: string | number | null | undefined, max = 999): number | null {
   if (v == null || v === "") return null;
