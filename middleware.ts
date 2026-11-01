@@ -25,7 +25,11 @@ export async function middleware(request: NextRequest) {
   const caminho = request.nextUrl.pathname;
   const publica = ROTAS_PUBLICAS.some((r) => caminho === r || caminho.startsWith(r + "/"));
 
-  if (!user && !publica) {
+  // Ação de formulário (salvar) com a sessão vencida: deixa passar; a própria ação manda para /entrar
+  // do jeito que a tela entende. Redirecionar aqui quebrava a página ("Application error").
+  const acaoDeFormulario = request.method === "POST" && request.headers.has("next-action");
+
+  if (!user && !publica && !acaoDeFormulario) {
     const url = request.nextUrl.clone();
     url.pathname = "/entrar";
     url.search = "";
