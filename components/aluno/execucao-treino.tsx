@@ -30,6 +30,19 @@ export function ExecucaoTreino(p: {
   const { execucaoId, plano } = p;
   const chaveLocal = `ca-treino-${execucaoId}`;
 
+  /** Série sem carga herda a da série anterior do mesmo exercício. */
+  const repetirCarga = (v: Record<string, Valor>) => {
+    const salvas = new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento })));
+    for (const e of plano) {
+      for (let n = 2; n <= e.series; n++) {
+        const k = chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false });
+        const anterior = v[chaveSerie({ exercicioId: e.id, numero: n - 1, aquecimento: false })]?.carga;
+        if (v[k] && !v[k].carga && anterior && !salvas.has(k)) v[k] = { ...v[k], carga: anterior };
+      }
+    }
+    return v;
+  };
+
   // Diferença entre o relógio do servidor e o do celular (para o cronômetro bater com o aviso)
   const desvio = useRef(0);
   const [pausaFim, setPausaFim] = useState<number | null>(null);
@@ -59,7 +72,7 @@ export function ExecucaoTreino(p: {
       const segundos = plano.find((e) => e.id === f.exercicio_id)?.metrica === "segundos";
       v[chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento })] = { carga: br(f.carga), reps: br(segundos ? f.segundos : f.reps) };
     }
-    return v;
+    return repetirCarga(v);
   });
 
   // Pausa que já estava correndo quando a tela abriu (voltou do bloqueio, recarregou)
@@ -75,7 +88,14 @@ export function ExecucaoTreino(p: {
     }
     try {
       const salvo = JSON.parse(localStorage.getItem(chaveLocal) ?? "null") as Record<string, Valor> | null;
-      if (salvo) setValores((v) => ({ ...v, ...salvo }));
+      if (salvo) {
+        setValores((v) => {
+          const n = { ...v };
+          // só o que o aluno digitou e ainda não marcou (o servidor vale para as séries feitas)
+          for (const [k, x] of Object.entries(salvo)) if (n[k] && (x.carga || x.reps)) n[k] = { carga: x.carga || n[k].carga, reps: x.reps || n[k].reps };
+          return repetirCarga(n);
+        });
+      }
     } catch {
       // sem armazenamento local: segue com o que veio do servidor
     }
