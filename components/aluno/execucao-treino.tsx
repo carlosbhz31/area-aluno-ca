@@ -7,7 +7,7 @@ import { pararPausa, tocarPausa } from "@/lib/som-pausa";
 import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
 import { AtivarAvisos } from "./ativar-avisos";
 import { Barra } from "../ui";
-import { alvo, chaveSerie, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave } from "@/lib/treino";
+import { alvo, blocos, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave } from "@/lib/treino";
 
 export type SerieSalva = { exercicio_id: string; numero: number; aquecimento: boolean; carga: number | null; reps: number | null; segundos: number | null };
 export type UltimaVez = { data: string; execucaoId: string; series: { numero: number; carga: number | null; reps: number | null; segundos: number | null }[] };
@@ -173,14 +173,17 @@ export function ExecucaoTreino(p: {
   const totalValidas = todas.filter((s) => !s.aquecimento).length;
   const proximaGeral = todas.find((s) => !feitas.has(chaveSerie(s)));
 
-  // Só um exercício aberto por vez: o que o aluno escolheu ou, se nenhum, o próximo da ordem
+  // Só um exercício aberto por vez (no superset, o bloco todo): o que o aluno escolheu ou o próximo da ordem
+  const listaBlocos = useMemo(() => blocos(plano), [plano]);
+  const blocoDe = (id: string | null | undefined) => listaBlocos.find((b) => b.some((x) => x.id === id)) ?? [];
   const [aberto, setAberto] = useState<string | null>(null);
-  const abertoId = aberto ?? proximaGeral?.exercicioId ?? null;
-  const abertoAntes = useRef(abertoId);
+  const blocoAberto = blocoDe(aberto ?? proximaGeral?.exercicioId);
+  const inicioAberto = blocoAberto[0]?.id ?? null;
+  const abertoAntes = useRef(inicioAberto);
   useEffect(() => {
-    if (abertoId && abertoAntes.current !== abertoId) document.getElementById(`ex-${abertoId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    abertoAntes.current = abertoId;
-  }, [abertoId]);
+    if (inicioAberto && abertoAntes.current !== inicioAberto) document.getElementById(`ex-${inicioAberto}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    abertoAntes.current = inicioAberto;
+  }, [inicioAberto]);
 
   function iniciarPausaLocal(fimServidor: string | undefined, agoraServ: string | undefined, segundos: number) {
     if (agoraServ) desvio.current = Date.parse(agoraServ) - Date.now();
@@ -207,8 +210,9 @@ export function ExecucaoTreino(p: {
 
     const novas = new Set(feitas).add(k);
     setFeitas(novas);
-    // Terminou o exercício: abre o próximo da ordem; senão continua neste
-    const acabou = todas.every((x) => x.exercicioId !== e.id || novas.has(chaveSerie(x)));
+    // Terminou o exercício (ou o superset inteiro): abre o próximo da ordem; senão continua neste
+    const doBloco = new Set(blocoDe(e.id).map((x) => x.id));
+    const acabou = todas.every((x) => !doBloco.has(x.exercicioId) || novas.has(chaveSerie(x)));
     setAberto(acabou ? null : e.id);
     // A carga usada passa para as próximas séries do exercício (o aluno só muda se trocar o peso)
     const cargaUsada = valores[k]?.carga;
@@ -223,7 +227,7 @@ export function ExecucaoTreino(p: {
       });
     }
     const prox = proximaSerie(plano, novas, s);
-    const pausa = s.aquecimento || !prox ? 0 : e.pausa;
+    const pausa = pausaDepois(plano, s, prox);
     iniciarPausaLocal(undefined, undefined, pausa); // já começa a contar; o servidor confirma em seguida
     tocarPip(pausa);
     const v = valores[k] ?? { carga: "", reps: "" };
@@ -290,6 +294,8 @@ export function ExecucaoTreino(p: {
         const feitasDoEx = series.filter((s) => !s.aquecimento && feitas.has(chaveSerie(s))).length;
         const completo = series.every((s) => feitas.has(chaveSerie(s)));
         const proximaDoEx = series.find((s) => !feitas.has(chaveSerie(s)));
+        const bloco = blocoDe(e.id);
+        const parceiros = bloco.filter((x) => x.id !== e.id).map((x) => x.nome);
         const marca = (
           <span className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${completo ? "bg-ok text-white" : "bg-marca-suave text-marca"}`}>
             {completo ? <Check className="size-4" /> : i + 1}
@@ -297,12 +303,13 @@ export function ExecucaoTreino(p: {
         );
 
         // Recolhido: uma linha com o essencial; toca para abrir
-        if (e.id !== abertoId) {
+        if (!blocoAberto.some((x) => x.id === e.id)) {
           return (
             <button key={e.id} id={`ex-${e.id}`} onClick={() => setAberto(e.id)} className={`cartao flex w-full scroll-mt-4 items-center gap-3 p-3 text-left ${completo ? "opacity-70" : ""}`}>
               {marca}
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{e.nome}</span>
+                {parceiros.length > 0 && <span className="block truncate text-[11px] font-semibold text-marca">Superset com {parceiros.join(" e ")}</span>}
                 <span className="block text-xs text-texto-suave">
                   {completo ? "Feito" : feitasDoEx ? `${feitasDoEx} de ${e.series} séries` : `${e.series} × ${alvo(e)}${e.metrica === "reps" ? " reps" : ""}`}
                 </span>
@@ -314,12 +321,17 @@ export function ExecucaoTreino(p: {
 
         return (
           <section key={e.id} id={`ex-${e.id}`} className="cartao scroll-mt-4 border-marca p-4">
+            {parceiros.length > 0 && (
+              <p className="mb-2 inline-block rounded-full bg-marca px-2.5 py-0.5 text-xs font-semibold text-white">
+                Superset · alterne com {parceiros.join(" e ")}, sem pausa entre eles
+              </p>
+            )}
             <div className="flex items-start gap-3">
               {marca}
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-bold leading-snug">{e.nome}</h2>
                 <p className="text-sm text-texto-suave">
-                  {e.series} × {alvo(e)}{e.metrica === "reps" ? " reps" : ""} · pausa {tempo(e.pausa)}
+                  {e.series} × {alvo(e)}{e.metrica === "reps" ? " reps" : ""} · {e.superset ? "sem pausa" : `pausa ${tempo(e.pausa)}`}
                   {e.equipamento ? ` · ${e.equipamento}` : ""}
                 </p>
                 {ult && (

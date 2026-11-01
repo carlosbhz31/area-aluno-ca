@@ -1,6 +1,20 @@
 // Treino: prescrição por semana do ciclo, plano do dia e o que vem depois de cada série.
 
 export type Metrica = "reps" | "segundos";
+
+export const GRUPOS = ["Peito", "Costas", "Ombros", "Bíceps", "Tríceps", "Antebraço", "Quadríceps", "Posteriores", "Glúteos", "Adutores", "Panturrilha", "Abdômen", "Lombar", "Cardio", "Outros"];
+
+/** "Bíceps e antebraços", "Triceps", "Glúteo " → nome da lista GRUPOS. */
+export function grupoPadrao(v: string | null | undefined): string | null {
+  const s = (v ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!s) return null;
+  const regras: [RegExp, string][] = [
+    [/^peit/, "Peito"], [/^costa/, "Costas"], [/^ombro/, "Ombros"], [/^bicep/, "Bíceps"], [/^tricep/, "Tríceps"], [/^antebra/, "Antebraço"],
+    [/^quadri/, "Quadríceps"], [/^posterior/, "Posteriores"], [/^glut/, "Glúteos"], [/^adut/, "Adutores"], [/^panturr/, "Panturrilha"],
+    [/^abdo/, "Abdômen"], [/^lomb/, "Lombar"], [/^cardio/, "Cardio"],
+  ];
+  return regras.find(([r]) => r.test(s))?.[1] ?? "Outros";
+}
 export type SemanaPrescrita = { series: number; min: number; max: number; pausa: number };
 
 export type ExercicioFicha = {
@@ -14,6 +28,9 @@ export type ExercicioFicha = {
   metrica: Metrica;
   aquecimento: number;
   prescricao: SemanaPrescrita[];
+  /** Faz junto com o exercício seguinte (superset). Planos antigos não têm o campo. */
+  superset?: boolean;
+  exercicio_id?: string | null;
 };
 
 /** Exercício como fica gravado na execução: a prescrição já é a da semana do treino. */
@@ -46,12 +63,32 @@ export function tempo(segundos: number) {
 
 export const chaveSerie = (c: SerieChave) => `${c.exercicioId}:${c.aquecimento ? "a" : "v"}:${c.numero}`;
 
-/** Todas as séries do plano, na ordem em que o aluno faz (aquecimento antes das válidas). */
+/** Blocos de exercícios: cada um sozinho, ou os ligados por superset juntos. */
+export function blocos<T extends { superset?: boolean }>(lista: T[]): T[][] {
+  const r: T[][] = [];
+  lista.forEach((e, i) => (i > 0 && lista[i - 1].superset ? r[r.length - 1].push(e) : r.push([e])));
+  return r;
+}
+
+/** Todas as séries do plano, na ordem em que o aluno faz (aquecimento antes das válidas;
+ *  no superset as séries se alternam: A1, B1, A2, B2...). */
 export function seriesDoPlano(plano: ExercicioPlano[]): SerieChave[] {
-  return plano.flatMap((e) => [
-    ...Array.from({ length: e.aquecimento }, (_, i) => ({ exercicioId: e.id, numero: i + 1, aquecimento: true })),
-    ...Array.from({ length: e.series }, (_, i) => ({ exercicioId: e.id, numero: i + 1, aquecimento: false })),
-  ]);
+  return blocos(plano).flatMap((bloco) => {
+    const aquec = bloco.flatMap((e) => Array.from({ length: e.aquecimento }, (_, i) => ({ exercicioId: e.id, numero: i + 1, aquecimento: true })));
+    const maior = Math.max(...bloco.map((e) => e.series));
+    const validas = Array.from({ length: maior }, (_, i) => bloco.filter((e) => i < e.series).map((e) => ({ exercicioId: e.id, numero: i + 1, aquecimento: false }))).flat();
+    return [...aquec, ...validas];
+  });
+}
+
+/** Pausa depois da série: nenhuma no aquecimento nem entre exercícios do mesmo superset. */
+export function pausaDepois(plano: ExercicioPlano[], s: SerieChave, prox: SerieChave | null) {
+  const e = plano.find((x) => x.id === s.exercicioId);
+  if (!e || s.aquecimento || !prox) return 0;
+  const bloco = blocos(plano).find((b) => b.some((x) => x.id === e.id)) ?? [];
+  const ultimoQueTemEssaSerie = [...bloco].reverse().find((x) => s.numero <= x.series);
+  if (bloco.length > 1 && ultimoQueTemEssaSerie?.id !== e.id && bloco.some((x) => x.id === prox.exercicioId)) return 0;
+  return ultimoQueTemEssaSerie?.pausa ?? e.pausa;
 }
 
 /** Próxima série ainda não feita depois da que acabou de ser marcada (ou a primeira que faltou). */

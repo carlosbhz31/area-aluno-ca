@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alvo, chaveSerie, numero, planoDoDia, prescricaoDaSemana, proximaSerie, tempo, type ExercicioFicha } from "./treino.ts";
+import { alvo, blocos, chaveSerie, grupoPadrao, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
 
 const semanas = [
   { series: 3, min: 12, max: 15, pausa: 60 },
@@ -49,4 +49,26 @@ test("formatos", () => {
   assert.equal(numero("36,25"), 36.25);
   assert.equal(numero(""), null);
   assert.equal(numero("abc"), null);
+});
+
+test("superset alterna as séries e só descansa depois do último", () => {
+  const a = { ...ficha("a", 1), superset: true };
+  const b = { ...ficha("b", 2), prescricao: [{ series: 3, min: 10, max: 12, pausa: 90 }] };
+  const plano = planoDoDia([a, b, ficha("c", 3)], 1);
+  assert.deepEqual(blocos(plano).map((x) => x.map((e) => e.id)), [["a", "b"], ["c"]]);
+  assert.deepEqual(seriesDoPlano(plano).map(chaveSerie), ["a:v:1", "b:v:1", "a:v:2", "b:v:2", "b:v:3", "c:v:1", "c:v:2"]);
+  const s = (id: string, n: number) => ({ exercicioId: id, numero: n, aquecimento: false });
+  assert.equal(pausaDepois(plano, s("a", 1), s("b", 1)), 0);
+  assert.equal(pausaDepois(plano, s("b", 1), s("a", 2)), 90);
+  assert.equal(pausaDepois(plano, s("b", 3), s("c", 1)), 90);
+  assert.equal(pausaDepois(plano, s("c", 1), s("c", 2)), 60);
+  assert.equal(pausaDepois(plano, s("c", 2), null), 0);
+});
+
+test("grupo muscular padronizado", () => {
+  assert.equal(grupoPadrao("Bíceps e antebraços"), "Bíceps");
+  assert.equal(grupoPadrao("Triceps"), "Tríceps");
+  assert.equal(grupoPadrao("Glúteo "), "Glúteos");
+  assert.equal(grupoPadrao("Abdomem"), "Abdômen");
+  assert.equal(grupoPadrao(""), null);
 });

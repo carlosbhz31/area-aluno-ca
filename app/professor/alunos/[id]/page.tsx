@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft, CalendarDays, CheckCircle2, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
+  ArrowLeft, CalendarDays, CheckCircle2, Dumbbell, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
   ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageSquareText,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
@@ -54,6 +54,11 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
     supabase.from("conquistas").select("broche", { count: "exact", head: true }).eq("aluno_id", id),
     supabase.from("registro_alteracoes").select("id, tabela, acao, em").or(`registro_id.eq.${id},depois->>aluno_id.eq.${id},antes->>aluno_id.eq.${id}`).order("em", { ascending: false }).limit(12),
     supabase.from("dados_privados").select("*").eq("aluno_id", id).maybeSingle<DadosPrivados>(),
+  ]);
+
+  const [{ data: programaAtivo }, { data: ultimaExecucao }] = await Promise.all([
+    supabase.from("programas").select("nome, treinos(id)").eq("aluno_id", id).eq("ativo", true).maybeSingle(),
+    supabase.from("execucoes").select("nome_treino, iniciada_em").eq("aluno_id", id).order("iniciada_em", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   // Primeiro acesso: só dá para saber pelo serviço de login (servidor, professor já verificado)
@@ -177,6 +182,23 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             )}
             {listaCiclos.length > 1 && (
               <p className="mt-4 text-xs text-texto-suave">Ciclos anteriores: {listaCiclos.filter((c) => !c.ativo).map((c) => `#${c.numero} (${dataBR(c.inicio)})`).join(", ")}</p>
+            )}
+          </Cartao>
+
+          {/* Treino no app */}
+          <Cartao>
+            <TituloCartao icone={Dumbbell} acao={<Link href={`/professor/alunos/${id}/treino`} className="botao-secundario !py-1.5 text-sm">{programaAtivo ? "Abrir treino" : "Montar treino"}</Link>}>
+              Treino no app
+            </TituloCartao>
+            {programaAtivo ? (
+              <p className="text-sm">
+                <strong>{programaAtivo.nome}</strong> · {programaAtivo.treinos.length} treino{programaAtivo.treinos.length === 1 ? "" : "s"}
+                <span className="text-texto-suave">
+                  {" "}· {ultimaExecucao ? `último treino em ${dataBR(ultimaExecucao.iniciada_em.slice(0, 10))} (${ultimaExecucao.nome_treino})` : "ainda não treinou pelo app"}
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-texto-suave">Sem programa no app. Monte aqui para o aluno treinar pela aba Treino (com aviso de pausa e registro das cargas).</p>
             )}
           </Cartao>
 
