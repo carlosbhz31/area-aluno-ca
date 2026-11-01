@@ -1,9 +1,13 @@
 // Coloca no app o programa de treino de um aluno a partir de um JSON (lido do documento/PDF do ciclo).
 // Cada exercício é ligado à lista pelo nome (ignorando acento, maiúscula e "com/na/no/de"), e herda
 // grupo, equipamento e vídeo de lá. O programa ativo anterior (se houver) vai para o histórico.
-// Uso: npx tsx --env-file=.env.local scripts/importar-programa.ts <aluno_id> <programa.json> [--gravar]
+// O ciclo também é acertado: mesmo início do ciclo ativo = completa objetivo e links; início novo = cria o
+// próximo ciclo (renovação). Assim a semana do ciclo, o link do programa e o do prontuário ficam na ficha.
+// Uso: npx tsx --env-file=.env.local scripts/importar-programa.ts <aluno_id> <programa.json> [--gravar | --so-ciclo]
+//      --so-ciclo: só acerta o ciclo e liga o programa ativo a ele (programa já importado antes)
 //
-// JSON: { nome, observacoes, evolucao?: Semana[], treinos: [{ nome, foco, observacoes,
+// JSON: { nome, observacoes, ciclo: { inicio: "AAAA-MM-DD", semanas?, objetivo, link_ciclo, link_prontuario },
+//         evolucao?: Semana[], treinos: [{ nome, foco, observacoes,
 //         exercicios: [{ nome, prescricao: Semana[] | "evolucao", aquecimento?, observacoes?, metrica? }] }] }
 // Semana = { series, min, max, pausa }
 
@@ -13,10 +17,12 @@ import { clienteAdmin } from "./comum.ts";
 import { chaveExercicio as chave, type SemanaPrescrita } from "../lib/treino.ts";
 
 type ExJson = { nome: string; prescricao: SemanaPrescrita[] | "evolucao"; aquecimento?: number; observacoes?: string; metrica?: "reps" | "segundos"; superset?: boolean };
-type ProgJson = { nome: string; observacoes?: string; evolucao?: SemanaPrescrita[]; treinos: { nome: string; foco?: string; observacoes?: string; exercicios: ExJson[] }[] };
+type CicloJson = { inicio: string; semanas?: number; objetivo?: string; link_ciclo?: string; link_prontuario?: string };
+type ProgJson = { nome: string; observacoes?: string; ciclo?: CicloJson; evolucao?: SemanaPrescrita[]; treinos: { nome: string; foco?: string; observacoes?: string; exercicios: ExJson[] }[] };
 
 const [alunoId, arquivo, flag] = process.argv.slice(2);
 const gravar = flag === "--gravar";
+const soCiclo = flag === "--so-ciclo";
 const prog = JSON.parse(readFileSync(arquivo, "utf8")) as ProgJson;
 
 const admin = clienteAdmin();
@@ -31,7 +37,36 @@ const acharNaLista = (nome: string) => {
   return candidatos.length === 1 ? candidatos[0] : null;
 };
 
-const { data: ciclo } = await admin.from("ciclos").select("id").eq("aluno_id", alunoId).eq("ativo", true).maybeSingle();
+/** Ciclo do programa: completa o ativo (mesmo início) ou cria o próximo (renovação). */
+async function acertarCiclo(c: CicloJson | undefined, aplicar: boolean): Promise<string | null> {
+  const { data: ativo } = await admin.from("ciclos").select("id, numero, inicio").eq("aluno_id", alunoId).eq("ativo", true).maybeSingle();
+  if (!c) {
+    console.log(`Ciclo: o JSON não traz o ciclo; ${ativo ? `programa fica no ciclo ${ativo.numero}` : "aluno SEM ciclo no app"}.`);
+    return ativo?.id ?? null;
+  }
+  const dados = { semanas: c.semanas ?? 8, objetivo: c.objetivo ?? null, link_ciclo: c.link_ciclo ?? null, link_prontuario: c.link_prontuario ?? null };
+  if (ativo && ativo.inicio === c.inicio) {
+    console.log(`Ciclo: completa o ciclo ${ativo.numero} (início ${c.inicio}) com objetivo e links.`);
+    if (aplicar) await admin.from("ciclos").update(dados).eq("id", ativo.id);
+    return ativo.id;
+  }
+  const { data: ultimo } = await admin.from("ciclos").select("numero").eq("aluno_id", alunoId).order("numero", { ascending: false }).limit(1).maybeSingle();
+  const numero = (ultimo?.numero ?? 0) + 1;
+  console.log(`Ciclo: cria o ciclo ${numero} começando em ${c.inicio}${ativo ? ` (o ${ativo.numero} vai para o histórico)` : ""}.`);
+  if (!aplicar) return null;
+  if (ativo) await admin.from("ciclos").update({ ativo: false }).eq("id", ativo.id);
+  const { data, error } = await admin.from("ciclos").insert({ aluno_id: alunoId, numero, inicio: c.inicio, ...dados }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+if (soCiclo) {
+  const cicloId = await acertarCiclo(prog.ciclo, true);
+  await admin.from("programas").update({ ciclo_id: cicloId }).eq("aluno_id", alunoId).eq("ativo", true);
+  console.log("Ciclo acertado e programa ativo ligado a ele.");
+  process.exit(0);
+}
+const cicloId = await acertarCiclo(prog.ciclo, gravar);
 const programaId = randomUUID();
 const treinos = prog.treinos.map((t, i) => ({ id: randomUUID(), programa_id: programaId, aluno_id: alunoId, ordem: i + 1, nome: t.nome, foco: t.foco ?? null, observacoes: t.observacoes ?? null }));
 const exercicios = prog.treinos.flatMap((t, i) =>
@@ -48,10 +83,10 @@ const exercicios = prog.treinos.flatMap((t, i) =>
 );
 
 if (!gravar) {
-  console.log(`\n(simulação: nada gravado; ciclo ativo no app: ${ciclo ? "sim" : "NÃO"})`);
+  console.log("\n(simulação: nada gravado)");
 } else {
   await admin.from("programas").update({ ativo: false }).eq("aluno_id", alunoId).eq("ativo", true);
-  const r1 = await admin.from("programas").insert({ id: programaId, aluno_id: alunoId, ciclo_id: ciclo?.id ?? null, nome: prog.nome, observacoes: prog.observacoes ?? null });
+  const r1 = await admin.from("programas").insert({ id: programaId, aluno_id: alunoId, ciclo_id: cicloId, nome: prog.nome, observacoes: prog.observacoes ?? null });
   if (r1.error) throw r1.error;
   const r2 = await admin.from("treinos").insert(treinos);
   if (r2.error) throw r2.error;
