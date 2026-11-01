@@ -2,11 +2,12 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as criarClienteSupabase } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../env";
 
 /** Cliente com a sessão do usuário: respeita as regras de segurança do banco. */
 export async function clienteServidor() {
   const loja = await cookies();
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
       getAll: () => loja.getAll(),
       setAll: (lista) => {
@@ -22,7 +23,7 @@ export async function clienteServidor() {
 
 /** Cliente administrativo: ignora as regras do banco. Use só depois de checar que é o professor. */
 export function clienteAdmin() {
-  return criarClienteSupabase(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  return criarClienteSupabase(SUPABASE_URL, (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").replace(/[﻿\s"']/g, ""), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
