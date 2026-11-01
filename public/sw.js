@@ -10,6 +10,8 @@ self.addEventListener("push", (evento) => {
   } catch {
     // aviso sem conteúdo: mostra o padrão
   }
+  // Fim da pausa do treino: substitui o aviso anterior e vibra de novo
+  const pausa = dados.tipo === "pausa";
   evento.waitUntil(
     self.registration.showNotification(dados.titulo, {
       body: dados.corpo,
@@ -17,6 +19,7 @@ self.addEventListener("push", (evento) => {
       badge: "/icones/icone-192.png",
       data: { url: dados.url },
       lang: "pt-BR",
+      ...(pausa ? { tag: "pausa", renotify: true, vibrate: [300, 120, 300, 120, 300] } : {}),
     }),
   );
 });

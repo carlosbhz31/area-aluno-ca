@@ -48,24 +48,34 @@ export async function avisar(a: Aviso): Promise<"enviado" | "repetido" | "silenc
   if (error) return "repetido";
   if (a.silencio && emSilencio(a.silencio.inicio, a.silencio.fim)) return "silencio";
 
-  const { data: inscricoes } = await admin.from("inscricoes_push").select("id, endpoint, p256dh, auth").eq("user_id", a.userId);
-  if (!inscricoes?.length || !prepararVapid()) return "sem_aparelho";
+  const algum = await enviarPush(a.userId, { titulo: a.titulo, corpo: a.corpo, url: a.url ?? "/" }, { TTL: 60 * 60 * 24 });
+  if (algum) await admin.from("notificacoes").update({ enviada_em: new Date().toISOString() }).eq("id", noti.id);
+  return algum ? "enviado" : "sem_aparelho";
+}
 
-  const carga = JSON.stringify({ titulo: a.titulo, corpo: a.corpo, url: a.url ?? "/" });
+export type CargaPush = { titulo: string; corpo: string; url: string; tipo?: string };
+
+/** Manda o push para todos os aparelhos da pessoa. true se chegou em pelo menos um. */
+export async function enviarPush(userId: string, carga: CargaPush, opcoes: webpush.RequestOptions) {
+  const admin = clienteAdmin();
+  const { data: inscricoes } = await admin.from("inscricoes_push").select("id, endpoint, p256dh, auth").eq("user_id", userId);
+  if (!inscricoes?.length || !prepararVapid()) return false;
+
+  const texto = JSON.stringify(carga);
   let algum = false;
   await Promise.all(
     inscricoes.map(async (i) => {
       try {
-        await webpush.sendNotification({ endpoint: i.endpoint, keys: { p256dh: i.p256dh, auth: i.auth } }, carga, { TTL: 60 * 60 * 24 });
+        await webpush.sendNotification({ endpoint: i.endpoint, keys: { p256dh: i.p256dh, auth: i.auth } }, texto, opcoes);
         algum = true;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await admin.from("inscricoes_push").delete().eq("id", i.id); // aparelho desinstalou
+        else console.error("push:", status, (e as Error).message);
       }
     }),
   );
-  if (algum) await admin.from("notificacoes").update({ enviada_em: new Date().toISOString() }).eq("id", noti.id);
-  return algum ? "enviado" : "sem_aparelho";
+  return algum;
 }
 
 /** Avisa o aluno pelo id do cadastro (busca login e horário silencioso). */

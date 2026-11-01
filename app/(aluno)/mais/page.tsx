@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardPen, FileText, LogOut, Salad, ShieldCheck, Smartphone } from "lucide-react";
+import { ChevronRight, ClipboardPen, FileText, LineChart, LogOut, Salad, ShieldCheck, Smartphone } from "lucide-react";
 import { exigirAluno } from "@/lib/sessao";
 import { AtivarAvisos } from "@/components/aluno/ativar-avisos";
 import { HorarioSilencioso } from "@/components/aluno/horario-silencioso";
@@ -9,6 +9,7 @@ export default async function Mais() {
   const { data: aluno } = await s.supabase.from("alunos").select("tem_nutricao, silencio_inicio, silencio_fim").eq("user_id", s.user.id).maybeSingle();
 
   const itens = [
+    { href: "/evolucao", icone: LineChart, titulo: "Evolução", texto: "Peso, medidas e fotos." },
     { href: "/plano", icone: FileText, titulo: "Meu plano", texto: "Ciclo atual, datas da consultoria e recados." },
     ...(aluno?.tem_nutricao ? [{ href: "/nutricao", icone: Salad, titulo: "Nutrição", texto: "Seu plano alimentar em PDF." }] : []),
     { href: "/anamnese", icone: ClipboardPen, titulo: "Anamnese", texto: "Questionário inicial e de realinhamento." },

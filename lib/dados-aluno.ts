@@ -5,7 +5,7 @@ import { FAIXAS_PADRAO } from "./ligas";
 import { prazoDaSemana, type PrazoSemana } from "./acompanhamento";
 import { hojeEmBH } from "./ciclo";
 
-const APPS_PADRAO: AppsTreino = {
+export const APPS_PADRAO: AppsTreino = {
   mfit: { nome: "MFit", web: "https://mfitpersonal.com.br", ios: null, android: null },
   treinoio: { nome: "treino.io", web: "https://treino.io", ios: null, android: null },
 };
