@@ -34,10 +34,11 @@ export function ExecucaoTreino(p: {
   const repetirCarga = (v: Record<string, Valor>) => {
     const salvas = new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento })));
     for (const e of plano) {
-      for (let n = 2; n <= e.series; n++) {
+      let anterior = "";
+      for (let n = 1; n <= e.series; n++) {
         const k = chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false });
-        const anterior = v[chaveSerie({ exercicioId: e.id, numero: n - 1, aquecimento: false })]?.carga;
         if (v[k] && !v[k].carga && anterior && !salvas.has(k)) v[k] = { ...v[k], carga: anterior };
+        anterior = v[k]?.carga || anterior;
       }
     }
     return v;
