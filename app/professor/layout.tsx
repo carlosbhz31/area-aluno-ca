@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { LogOut } from "lucide-react";
-import { exigirProfessor } from "@/lib/sessao";
+import { exigirProfessor, professorTambemAluno } from "@/lib/sessao";
 import { MenuProfessor } from "@/components/professor/menu-professor";
 
 export default async function LayoutProfessor({ children }: { children: React.ReactNode }) {
   const s = await exigirProfessor();
+  const meuTreino = await professorTambemAluno();
 
   return (
     <div className="min-h-dvh">
@@ -17,7 +18,7 @@ export default async function LayoutProfessor({ children }: { children: React.Re
             <p className="font-bold text-white">Painel do Professor</p>
           </div>
         </div>
-        <MenuProfessor />
+        <MenuProfessor meuTreino={meuTreino} />
         <div className="border-t border-white/10 px-3 pt-4 text-xs text-menu-texto/60">
           <p className="truncate">{s.user.email}</p>
           <form action="/auth/sair" method="post">
@@ -36,7 +37,7 @@ export default async function LayoutProfessor({ children }: { children: React.Re
             <button className="flex items-center gap-1 text-sm text-menu-texto hover:text-white"><LogOut className="size-4" /> Sair</button>
           </form>
         </div>
-        <MenuProfessor celular />
+        <MenuProfessor celular meuTreino={meuTreino} />
       </header>
 
       <main className="px-4 py-6 md:ml-64 md:px-10 md:py-8">{children}</main>

@@ -30,7 +30,18 @@ async function exigirPapel(papel: Papel) {
 export const exigirProfessor = () => exigirPapel("professor");
 export const exigirNutricionista = () => exigirPapel("nutricionista");
 
-/** Área do aluno: quem é professor ou nutricionista é mandado para a própria área. */
+/** Professor que também é aluno (treina pelo próprio app): tem cadastro de aluno ligado ao login. */
+export const professorTambemAluno = cache(async () => {
+  const s = await sessaoAtual();
+  if (!s || s.papel !== "professor") return false;
+  const { data } = await s.supabase.from("alunos").select("id").eq("user_id", s.user.id).maybeSingle();
+  return Boolean(data);
+});
+
+/** Área do aluno: quem é professor ou nutricionista é mandado para a própria área
+ *  (menos o professor que também é aluno, que pode usar as duas). */
 export async function exigirAluno() {
+  const s = await sessaoAtual();
+  if (s?.papel === "professor" && (await professorTambemAluno())) return s;
   return exigirPapel("aluno");
 }

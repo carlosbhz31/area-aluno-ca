@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarClock, Dumbbell, Settings, Users } from "lucide-react";
+import { BarChart3, CalendarClock, Dumbbell, PlayCircle, Settings, Users } from "lucide-react";
 
-const ITENS = [
+const ITENS_BASE = [
   { href: "/professor/hoje", rotulo: "Hoje", icone: CalendarClock },
   { href: "/professor/alunos", rotulo: "Alunos", icone: Users },
   { href: "/professor/exercicios", rotulo: "Exercícios", icone: Dumbbell },
@@ -12,8 +12,10 @@ const ITENS = [
   { href: null, rotulo: "Supervisão", icone: BarChart3 },
 ];
 
-export function MenuProfessor({ celular = false }: { celular?: boolean }) {
+/** meuTreino: o professor também é aluno e treina pelo app (atalho para a área do aluno). */
+export function MenuProfessor({ celular = false, meuTreino = false }: { celular?: boolean; meuTreino?: boolean }) {
   const caminho = usePathname();
+  const ITENS = meuTreino ? [...ITENS_BASE, { href: "/treino", rotulo: "Meu treino", icone: PlayCircle }] : ITENS_BASE;
   const ativo = (href: string) => caminho === href || caminho.startsWith(href + "/");
 
   if (celular) {
