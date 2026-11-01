@@ -107,6 +107,18 @@ export function textoProxima(plano: ExercicioPlano[], s: SerieChave | null) {
   return `${e.nome}: ${qual} (${alvo(e)}${e.metrica === "reps" ? " reps" : ""})`;
 }
 
+/** Chave para comparar nomes de exercício: "Leg press 45°" e "Leg Press 45" ficam iguais. */
+export function chaveExercicio(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[°º()|-]/g, " ")
+    .split(/\s+/)
+    .filter((p) => p && !["com", "na", "no", "de", "da", "do", "a", "o", "e", "em"].includes(p))
+    .join(" ");
+}
+
 /** Id do vídeo do YouTube (watch?v=, youtu.be/, shorts/, embed/, live/). null se não for do YouTube. */
 export function videoYoutube(url: string | null | undefined): { id: string; vertical: boolean } | null {
   if (!url) return null;

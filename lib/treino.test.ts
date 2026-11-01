@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alvo, blocos, chaveSerie, grupoPadrao, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
+import { alvo, blocos, chaveExercicio, chaveSerie, grupoPadrao, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
 
 const semanas = [
   { series: 3, min: 12, max: 15, pausa: 60 },
@@ -71,4 +71,11 @@ test("grupo muscular padronizado", () => {
   assert.equal(grupoPadrao("Glúteo "), "Glúteos");
   assert.equal(grupoPadrao("Abdomem"), "Abdômen");
   assert.equal(grupoPadrao(""), null);
+});
+
+test("nomes de exercício iguais apesar de acento, maiúscula e preposição", () => {
+  assert.equal(chaveExercicio("Leg press 45°"), chaveExercicio("Leg Press 45"));
+  assert.equal(chaveExercicio("Panturrilha Sentado na Máquina"), chaveExercicio("Panturrilha Sentado Maquina"));
+  assert.equal(chaveExercicio("Remada Baixa (Pegada Pronada)"), "remada baixa pegada pronada");
+  assert.notEqual(chaveExercicio("Stiff com Halteres"), chaveExercicio("Agachamento Guiado"));
 });

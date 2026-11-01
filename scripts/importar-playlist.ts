@@ -6,19 +6,13 @@
 
 import { readFileSync } from "node:fs";
 import { clienteAdmin } from "./comum.ts";
+import { chaveExercicio as chave } from "../lib/treino.ts";
 
 const [arquivo, flag] = process.argv.slice(2);
 const gravar = flag === "--gravar";
 const videos = JSON.parse(readFileSync(arquivo, "utf8")) as { id: string; t: string }[];
 
 const sem = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-/** "Leg press 45°" e "Leg Press 45" viram a mesma chave. */
-export const chave = (s: string) =>
-  sem(s)
-    .replace(/[°º()\-|]/g, " ")
-    .split(/\s+/)
-    .filter((p) => p && !["com", "na", "no", "de", "da", "do", "a", "o", "e", "em"].includes(p))
-    .join(" ");
 
 function grupo(t: string): string {
   const s = sem(t);
