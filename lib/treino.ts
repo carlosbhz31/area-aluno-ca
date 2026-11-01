@@ -2,7 +2,7 @@
 
 export type Metrica = "reps" | "segundos";
 
-export const GRUPOS = ["Peito", "Costas", "Ombros", "Bíceps", "Tríceps", "Antebraço", "Quadríceps", "Posteriores", "Glúteos", "Adutores", "Panturrilha", "Abdômen", "Lombar", "Cardio", "Outros"];
+export const GRUPOS = ["Peito", "Costas", "Ombros", "Bíceps", "Tríceps", "Antebraço", "Quadríceps", "Posteriores", "Glúteos", "Adutores", "Panturrilha", "Abdômen", "Lombar", "Mobilidade", "Cardio", "Outros"];
 
 /** "Bíceps e antebraços", "Triceps", "Glúteo " → nome da lista GRUPOS. */
 export function grupoPadrao(v: string | null | undefined): string | null {
@@ -11,7 +11,7 @@ export function grupoPadrao(v: string | null | undefined): string | null {
   const regras: [RegExp, string][] = [
     [/^peit/, "Peito"], [/^costa/, "Costas"], [/^ombro/, "Ombros"], [/^bicep/, "Bíceps"], [/^tricep/, "Tríceps"], [/^antebra/, "Antebraço"],
     [/^quadri/, "Quadríceps"], [/^posterior/, "Posteriores"], [/^glut/, "Glúteos"], [/^adut/, "Adutores"], [/^panturr/, "Panturrilha"],
-    [/^abdo/, "Abdômen"], [/^lomb/, "Lombar"], [/^cardio/, "Cardio"],
+    [/^abdo/, "Abdômen"], [/^lomb/, "Lombar"], [/^mobil/, "Mobilidade"], [/^cardio/, "Cardio"],
   ];
   return regras.find(([r]) => r.test(s))?.[1] ?? "Outros";
 }
