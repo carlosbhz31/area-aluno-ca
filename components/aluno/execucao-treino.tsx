@@ -36,7 +36,10 @@ export function ExecucaoTreino(p: {
   ultimaVez: Record<string, UltimaVez>;
   pausaAte: string | null;
   agoraServidor: string;
+  /** Prévia do professor ("Ver como o aluno"): tudo funciona na tela, mas nada é salvo nem avisado. */
+  previa?: { voltar: string };
 }) {
+  const previa = p.previa;
   const { execucaoId, plano } = p;
   const chaveLocal = `ca-treino-${execucaoId}`;
 
@@ -207,7 +210,7 @@ export function ExecucaoTreino(p: {
 
     if (feitas.has(k)) {
       setFeitas((x) => { const n = new Set(x); n.delete(k); return n; });
-      await desmarcarSerie(execucaoId, s.exercicioId, s.numero, s.aquecimento).catch(() => setErro("Não consegui desmarcar. Confere a internet."));
+      if (!previa) await desmarcarSerie(execucaoId, s.exercicioId, s.numero, s.aquecimento).catch(() => setErro("Não consegui desmarcar. Confere a internet."));
       return fim();
     }
 
@@ -232,6 +235,10 @@ export function ExecucaoTreino(p: {
     const prox = proximaSerie(plano, novas, s);
     const pausa = pausaDepois(plano, s, prox);
     iniciarPausaLocal(undefined, undefined, pausa); // já começa a contar; o servidor confirma em seguida
+    if (previa) {
+      if (!prox) setFinalizando(true);
+      return fim();
+    }
     tocarPip(pausa);
     const v = valores[k] ?? { carga: "", reps: "" };
     try {
@@ -268,6 +275,7 @@ export function ExecucaoTreino(p: {
       setPausaTotal((t) => Math.max(3, t + seg));
       tocarPip((fim - Date.now()) / 1000);
     }
+    if (previa) return;
     const r = await ajustarPausa(seg).catch(() => null);
     if (r?.terminaEm && seg !== "pular") iniciarPausaLocal(r.terminaEm, r.agora, Math.max(3, pausaTotal + seg));
   }
@@ -277,7 +285,7 @@ export function ExecucaoTreino(p: {
   return (
     <div className="mx-auto max-w-xl space-y-4 pb-32 pt-2">
       <div className="flex items-start gap-3">
-        <Link href="/treino" className="botao-secundario !p-2" aria-label="Voltar"><ArrowLeft className="size-5" /></Link>
+        <Link href={previa?.voltar ?? "/treino"} className="botao-secundario !p-2" aria-label="Voltar"><ArrowLeft className="size-5" /></Link>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold leading-tight">{p.nome}</h1>
           <p className="text-sm text-texto-suave">
@@ -288,7 +296,11 @@ export function ExecucaoTreino(p: {
       </div>
       <Barra valor={totalValidas ? feitasValidas / totalValidas : 0} />
 
-      <AtivarAvisos compacto />
+      {previa ? (
+        <p className="rounded-xl bg-marca-suave px-3 py-2 text-xs text-marca">Prévia: pode tocar em tudo. Nada é salvo e nenhum aviso é enviado ao aluno.</p>
+      ) : (
+        <AtivarAvisos compacto />
+      )}
       {erro && <p className="cartao border-perigo/40 bg-perigo-suave p-3 text-sm text-perigo">{erro}</p>}
 
       {plano.map((e, i) => {
@@ -412,6 +424,7 @@ export function ExecucaoTreino(p: {
               } catch {
                 // ignora
               }
+              if (previa) return void setEnviando(false);
               await concluirTreino(execucaoId, esforco, String(f.get("comentario") ?? ""));
             }}
             className="space-y-3"
@@ -427,13 +440,13 @@ export function ExecucaoTreino(p: {
         onClick={() => {
           if (confirm("Descartar este treino? As séries marcadas hoje serão apagadas.")) descartarTreino(execucaoId);
         }}
-        className="mx-auto flex items-center gap-1 text-xs text-texto-suave"
+        className={`mx-auto flex items-center gap-1 text-xs text-texto-suave ${previa ? "hidden" : ""}`}
       >
         <Trash2 className="size-3.5" /> Descartar treino
       </button>
 
       {(pausaFim || aviso) && (
-        <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 px-4 lg:bottom-6 lg:left-60">
+        <div className={previa ? "sticky bottom-3 z-30" : "fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 px-4 lg:bottom-6 lg:left-60"}>
           <div className="mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-menu p-3 text-white shadow-xl">
             <Timer className={`size-6 shrink-0 ${aviso ? "text-ok" : "text-white/70"}`} />
             <div className="min-w-0 flex-1">
