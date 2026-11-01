@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft, CalendarDays, CheckCircle2, Circle, ClipboardList, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
+  ArrowLeft, CalendarDays, CheckCircle2, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
   ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageSquareText,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
@@ -11,11 +11,11 @@ import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR, moedaBR } from "@/lib/formato";
 import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
 import { Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
-import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, FormOrientacao, UploadPlano, type DadosPrivados } from "@/components/professor/formularios";
+import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, FormExcluirAluno, FormOrientacao, UploadPlano, type DadosPrivados } from "@/components/professor/formularios";
 import { PainelEvolucao } from "@/components/evolucao";
 import { sinaisDeAlerta, type Respostas } from "@/lib/acompanhamento";
 import {
-  adicionarAnotacao, darConquista, editarCiclo, mudarSituacao, novoCiclo, pausarOuRetomarCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
+  adicionarAnotacao, darConquista, editarCiclo, excluirDadosDoAluno, mudarSituacao, novoCiclo, pedirRealinhamento, pausarOuRetomarCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
 } from "../../acoes";
 
 export const metadata = { title: "Ficha do aluno · Painel do Professor" };
@@ -46,7 +46,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
     supabase.from("ciclos").select("*").eq("aluno_id", id).order("numero", { ascending: false }),
     supabase.from("anotacoes_internas").select("id, texto, criada_em").eq("aluno_id", id).order("criada_em", { ascending: false }).limit(20),
     supabase.from("contratos").select("id, data, assinado").eq("aluno_id", id),
-    supabase.from("anamneses").select("id, tipo, status, criada_em").eq("aluno_id", id).order("criada_em", { ascending: false }),
+    supabase.from("anamneses").select("id, tipo, status, criada_em, concluida_em").eq("aluno_id", id).order("criada_em", { ascending: false }),
     supabase.from("acompanhamentos").select("id, semana, enviado_em, respostas, resposta_professor, atencao").eq("aluno_id", id).order("enviado_em", { ascending: false }).limit(12),
     supabase.from("reavaliacoes").select("ciclo_id, formato, escolhido_em").eq("aluno_id", id),
     supabase.from("documentos").select("id, tipo, titulo, versao, data, arquivo_path").eq("aluno_id", id).order("data", { ascending: false }).order("versao", { ascending: false }),
@@ -83,6 +83,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
     { ok: listaAnamneses.some((a) => a.status !== "rascunho"), texto: "Anamnese concluída" },
     { ok: listaAnamneses.some((a) => a.status === "revisada"), texto: "Anamnese revisada" },
     { ok: !!ultimoAcesso, texto: "Primeiro acesso do aluno" },
+    { ok: !!aluno.termos_aceitos_em, texto: "Termos de privacidade aceitos" },
   ];
 
   return (
@@ -199,13 +200,28 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             <Cartao>
               <TituloCartao icone={ScrollText}>Anamneses</TituloCartao>
               {listaAnamneses.length ? (
-                <ul className="space-y-2 text-sm">
+                <ul className="-mx-2 space-y-1 text-sm">
                   {listaAnamneses.map((a) => (
-                    <li key={a.id} className="flex justify-between"><span className="capitalize">{a.tipo}</span><Selo tom={a.status === "revisada" ? "ok" : "alerta"}>{a.status}</Selo></li>
+                    <li key={a.id}>
+                      <Link href={`/professor/anamneses/${a.id}`} className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-fundo">
+                        <span>
+                          <span className="font-semibold">{a.tipo === "inicial" ? "Inicial" : "Realinhamento"}</span>
+                          <span className="ml-2 text-texto-suave">{dataBR(a.concluida_em ?? a.criada_em)}</span>
+                        </span>
+                        <Selo tom={a.status === "revisada" ? "ok" : a.status === "concluida" ? "marca" : "alerta"}>
+                          {a.status === "revisada" ? "Revisada" : a.status === "concluida" ? "Revisar" : "Preenchendo"}
+                        </Selo>
+                      </Link>
+                    </li>
                   ))}
                 </ul>
               ) : (
-                <Vazio icone={ScrollText} titulo="Nenhuma anamnese">O aluno preenche pelo app a partir da Etapa 4.</Vazio>
+                <Vazio icone={ScrollText} titulo="Nenhuma anamnese">O aluno preenche pelo app no primeiro acesso.</Vazio>
+              )}
+              {listaAnamneses.some((a) => a.status !== "rascunho") && !listaAnamneses.some((a) => a.status === "rascunho") && (
+                <form action={pedirRealinhamento.bind(null, id)} className="mt-3">
+                  <button className="botao-secundario !py-1.5 text-sm">Pedir anamnese de realinhamento</button>
+                </form>
               )}
             </Cartao>
             <Cartao>
@@ -300,6 +316,19 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
                 </li>
               ))}
             </ul>
+          </Cartao>
+
+          <Cartao>
+            <TituloCartao icone={Download}>Dados do aluno (LGPD)</TituloCartao>
+            <p className="text-sm text-texto-suave">
+              {aluno.termos_aceitos_em ? `Termos aceitos em ${dataBR(aluno.termos_aceitos_em)}.` : "Ainda não aceitou os termos."} Se o aluno pedir, você manda a cópia ou apaga tudo.
+            </p>
+            <a href={`/professor/alunos/${id}/exportar`} className="botao-secundario mt-3 !py-1.5 text-sm"><Download className="size-4" /> Baixar cópia dos dados</a>
+            <details className="mt-4">
+              <summary className="cursor-pointer text-sm font-semibold text-perigo">Apagar todos os dados</summary>
+              <p className="my-2 text-xs text-texto-suave">Só a pedido do aluno. Para só tirar o acesso, use Inativar: o histórico fica guardado.</p>
+              <FormExcluirAluno acao={excluirDadosDoAluno.bind(null, id)} nome={aluno.nome} />
+            </details>
           </Cartao>
 
           <Cartao>

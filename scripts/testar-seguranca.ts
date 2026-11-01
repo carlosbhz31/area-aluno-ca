@@ -104,6 +104,32 @@ confere("aluno não se dá broche", !!eConquista);
 const { data: notiAlheias } = await cliente.from("notificacoes").select("destinatario");
 confere("aluno só vê os próprios avisos", (notiAlheias ?? []).every((n) => n.destinatario === (usuarioTeste ?? "")));
 
+// Etapa 4: termos e anamnese
+const { count: termosAntes } = await admin.from("alunos").select("id", { count: "exact", head: true }).eq("termos_versao", "teste");
+await cliente.rpc("aceitar_termos", { versao: "teste" });
+const { count: termosDepois } = await admin.from("alunos").select("id", { count: "exact", head: true }).eq("termos_versao", "teste");
+const { data: proprioTermo } = await admin.from("alunos").select("termos_versao").eq("id", aluno!.id).single();
+confere("aceite dos termos vale só para o próprio aluno", proprioTermo?.termos_versao === "teste" && (termosDepois ?? 0) - (termosAntes ?? 0) === 1);
+const { data: termoDireto } = await cliente.from("alunos").update({ termos_versao: "falso" }).eq("id", aluno!.id).select();
+confere("aluno não edita o cadastro para mudar o aceite", (termoDireto ?? []).length === 0);
+const { data: anam, error: eAnam } = await cliente.from("anamneses").insert({ aluno_id: aluno!.id, respostas: { rotina: { profissao: "teste" } } }).select("id").single();
+confere("aluno abre a própria anamnese", !eAnam);
+const { error: eDoisRascunhos } = await cliente.from("anamneses").insert({ aluno_id: aluno!.id, respostas: {} });
+confere("só um rascunho de anamnese por vez", !!eDoisRascunhos);
+const { data: autoRevisao } = await cliente.from("anamneses").update({ status: "revisada" }).eq("id", anam?.id ?? "").select();
+confere("aluno não marca a própria anamnese como revisada", (autoRevisao ?? []).length === 0);
+const { data: dataRevisao } = await cliente.from("anamneses").update({ revisada_em: new Date().toISOString() }).eq("id", anam?.id ?? "").select();
+confere("aluno não preenche a data de revisão", (dataRevisao ?? []).length === 0);
+const { error: eAnamAlheia } = await cliente.from("anamneses").insert({ aluno_id: outroCiclo?.aluno_id ?? aluno!.id, respostas: {}, tipo: "realinhamento" });
+confere("aluno não cria anamnese para outro aluno", !!eAnamAlheia || !outroCiclo);
+await admin.from("anamneses").update({ status: "revisada", revisada_em: new Date().toISOString() }).eq("id", anam?.id ?? "");
+const { data: editaRevisada } = await cliente.from("anamneses").update({ respostas: {} }).eq("id", anam?.id ?? "").select();
+confere("anamnese revisada fica travada para o aluno", (editaRevisada ?? []).length === 0);
+const { error: eFotoAnam } = await cliente.storage.from("fotos").upload(`${aluno!.id}/anamnese/teste-${Date.now()}.jpg`, png, { contentType: "image/jpeg" });
+confere("aluno envia foto da anamnese na própria pasta", !eFotoAnam);
+const { data: anamAlheias } = await cliente.from("anamneses").select("aluno_id");
+confere("aluno só vê as próprias anamneses", (anamAlheias ?? []).every((x) => x.aluno_id === aluno!.id));
+
 const { data: listaNutriAluno } = await cliente.rpc("alunos_da_nutricao");
 confere("aluno não vê a lista da nutrição", (listaNutriAluno ?? []).length === 0);
 
@@ -161,8 +187,11 @@ const { data: reativado } = await cliente.from("ciclos").select("id");
 confere("ao reativar, o aluno volta a ver tudo", (reativado ?? []).length === 1);
 
 // Limpeza
-const { data: arquivos } = await admin.storage.from("fotos").list(aluno!.id);
-if (arquivos?.length) await admin.storage.from("fotos").remove(arquivos.map((a) => `${aluno!.id}/${a.name}`));
+for (const pasta of [aluno!.id, `${aluno!.id}/anamnese`]) {
+  const { data: arquivos } = await admin.storage.from("fotos").list(pasta);
+  const soArquivos = (arquivos ?? []).filter((a) => a.id);
+  if (soArquivos.length) await admin.storage.from("fotos").remove(soArquivos.map((a) => `${pasta}/${a.name}`));
+}
 const { data: usuario } = await cliente.auth.getUser();
 await admin.from("alunos").delete().eq("id", aluno!.id);
 if (usuario.user) await admin.auth.admin.deleteUser(usuario.user.id);

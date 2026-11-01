@@ -300,6 +300,26 @@ export function FormEndereco({ acao, dados }: { acao: Acao; dados: DadosPrivados
   );
 }
 
+/** Exclusão definitiva (LGPD). Pede o nome completo para não apagar por engano. */
+export function FormExcluirAluno({ acao, nome }: { acao: Acao; nome: string }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  return (
+    <form
+      action={enviar}
+      onSubmit={(e) => {
+        if (!window.confirm(`Apagar TUDO de ${nome}? Cadastro, anamneses, acompanhamentos, fotos, PDFs e login. Não tem volta.`)) e.preventDefault();
+      }}
+      className="space-y-2"
+    >
+      <input name="confirmacao" placeholder={`Digite: ${nome}`} autoComplete="off" className="campo" />
+      <div className="flex items-center gap-3">
+        <button className="botao-secundario !text-perigo" disabled={pendente}>{pendente ? <Loader2 className="size-4 animate-spin" /> : "Apagar todos os dados"}</button>
+        {estado?.erro && <p className="text-sm text-perigo">{estado.erro}</p>}
+      </div>
+    </form>
+  );
+}
+
 export function FormAnotacao({ acao }: { acao: Acao }) {
   const [estado, enviar, pendente] = useActionState(acao, undefined);
   return (

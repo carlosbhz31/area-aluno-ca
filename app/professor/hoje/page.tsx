@@ -136,7 +136,7 @@ export default async function Hoje() {
   // 6) Anamneses preenchidas esperando revisão
   const anamneses: Linha[] = (anamnesesR.data ?? [])
     .filter((a) => porId.has(a.aluno_id))
-    .map((a) => ({ id: a.id, href: `/professor/alunos/${a.aluno_id}`, nome: nome(a.aluno_id), detalhe: `${a.tipo === "inicial" ? "Inicial" : "Realinhamento"} · ${dataBR(a.concluida_em)}` }));
+    .map((a) => ({ id: a.id, href: `/professor/anamneses/${a.id}`, nome: nome(a.aluno_id), detalhe: `${a.tipo === "inicial" ? "Inicial" : "Realinhamento"} · ${dataBR(a.concluida_em)}` }));
 
   const total = semResposta.length + atrasados.length + reavaliacao.length;
   const naoComecaram = alunos.filter((x) => x.aluno.situacao === "ativo" && !usaApp.has(x.aluno.id)).length;

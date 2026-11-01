@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, ChevronRight, ClipboardList, Dumbbell, Flag, MessageCircleReply, MessageSquareText, Shield, Sparkles, Trophy } from "lucide-react";
 import { CartaoReavaliacao } from "./aluno/cartao-reavaliacao";
 import { AtivarAvisos } from "./aluno/ativar-avisos";
+import { ComeceAqui } from "./aluno/comece-aqui";
 import type { PainelAluno } from "@/lib/dados-aluno";
 import { situacaoDoCiclo, emRetaFinal, hojeEmBH, type SituacaoCiclo } from "@/lib/ciclo";
 import { ligaProtegida } from "@/lib/ligas";
@@ -61,6 +62,8 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
       )}
 
       {!preview && <AtivarAvisos compacto />}
+
+      <ComeceAqui anamnese={painel.jornada.anamnese} broches={painel.jornada.broches} app={app} linkApp={painel.aluno.app_treino_link} preview={preview} />
 
       {mostrarReavaliacao && (
         <CartaoReavaliacao escolha={painel.reavaliacao} contato={painel.contato} primeiroNome={primeiroNome(painel.aluno.nome)} preview={preview} />

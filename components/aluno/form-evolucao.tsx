@@ -13,7 +13,7 @@ const POSES = [
 ] as const;
 
 /** Reduz a foto (máx. 1600 px, JPEG) antes de enviar: sobe rápido e ocupa menos espaço. */
-async function reduzir(arquivo: File): Promise<Blob> {
+export async function reduzir(arquivo: File): Promise<Blob> {
   try {
     const img = await createImageBitmap(arquivo);
     const escala = Math.min(1, 1600 / Math.max(img.width, img.height));

@@ -30,8 +30,11 @@ async function apagar() {
   const { data: a } = await admin.from("alunos").select("id, user_id").eq("email", EMAIL_ALUNO).maybeSingle();
   if (a) {
     for (const bucket of ["fotos", "documentos"]) {
-      const { data: arquivos } = await admin.storage.from(bucket).list(a.id);
-      if (arquivos?.length) await admin.storage.from(bucket).remove(arquivos.map((f) => `${a.id}/${f.name}`));
+      for (const pasta of [a.id, `${a.id}/anamnese`]) {
+        const { data: arquivos } = await admin.storage.from(bucket).list(pasta);
+        const soArquivos = (arquivos ?? []).filter((f) => f.id);
+        if (soArquivos.length) await admin.storage.from(bucket).remove(soArquivos.map((f) => `${pasta}/${f.name}`));
+      }
     }
     await admin.from("alunos").delete().eq("id", a.id);
     await admin.from("registro_alteracoes").delete().eq("registro_id", a.id);

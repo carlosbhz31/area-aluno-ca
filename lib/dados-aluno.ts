@@ -35,6 +35,8 @@ export type PainelAluno = {
   respostaNova: { id: string; semana: number | null } | null;
   reavaliacao: "call" | "whatsapp" | null;
   contato: Contato;
+  /** Primeiro acesso ("comece aqui"): situação da anamnese e broches da jornada já ganhos. */
+  jornada: { anamnese: "nenhuma" | "rascunho" | "feita"; broches: string[] };
 };
 
 /** Tudo que o Início precisa. Funciona para o próprio aluno e para o professor (visão do aluno). */
@@ -45,7 +47,7 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
   if (!aluno) return null;
 
   const umaSemanaAtras = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const [ciclo, pontos, config, conquistas, orientacao, respondido] = await Promise.all([
+  const [ciclo, pontos, config, conquistas, orientacao, respondido, anamneses, jornada] = await Promise.all([
     supabase.from("ciclos").select("*").eq("aluno_id", aluno.id).eq("ativo", true).maybeSingle<Ciclo>(),
     supabase.from("pontuacoes").select("pontos, data").eq("aluno_id", aluno.id),
     supabase.from("configuracoes").select("chave, valor").in("chave", ["faixas_ligas", "apps_treino", "dia_padrao_acompanhamento", "whatsapp_carlos", "link_agenda"]),
@@ -72,7 +74,10 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
       .order("respondido_em", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase.from("anamneses").select("status").eq("aluno_id", aluno.id),
+    supabase.from("conquistas").select("broche").eq("aluno_id", aluno.id).in("broche", ["termos_aceitos", "app_treino", "app_instalado", "avisos_ligados"]),
   ]);
+  const statusAnamneses = (anamneses.data ?? []).map((a) => a.status);
 
   const mapaConfig = Object.fromEntries((config.data ?? []).map((c) => [c.chave, c.valor]));
   const cicloAtivo = ciclo.data ?? null;
@@ -110,5 +115,9 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
     respostaNova: respondido.data ?? null,
     reavaliacao,
     contato: { whatsapp: (mapaConfig.whatsapp_carlos as string | null) || null, agenda: (mapaConfig.link_agenda as string | null) || null },
+    jornada: {
+      anamnese: statusAnamneses.some((st) => st !== "rascunho") ? "feita" : statusAnamneses.length ? "rascunho" : "nenhuma",
+      broches: (jornada.data ?? []).map((c) => c.broche),
+    },
   };
 }

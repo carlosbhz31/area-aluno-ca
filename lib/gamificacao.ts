@@ -128,6 +128,14 @@ export async function premiarEvolucao(
   });
 }
 
+/** Anamnese concluída: pontos uma vez por anamnese (inicial ou realinhamento). */
+export async function premiarAnamnese(alunoId: string, anamneseId: string) {
+  await comLiga(alunoId, async (regras) => {
+    await pontuar(alunoId, "anamnese_concluida", regras.anamnese_concluida, anamneseId);
+    await conquistar(alunoId, "anamnese_concluida");
+  });
+}
+
 /** Broches de tempo de casa (checado ao abrir o Início). */
 export async function conquistasDeTempo(aluno: { id: string; inicio: string | null }) {
   if (!aluno.inicio) return;

@@ -1,10 +1,12 @@
 import {
-  Award, CalendarCheck, Camera, ClipboardCheck, Crown, Dumbbell, Flame, Gem, Medal, RefreshCw, Scale, Send, Smartphone, Target, Trophy,
+  Award, BellRing, CalendarCheck, Camera, ClipboardCheck, Crown, Dumbbell, Flame, Gem, Handshake, Medal, RefreshCw, Scale, Send, Smartphone, Target, Trophy,
   type LucideIcon,
 } from "lucide-react";
 
 const ICONES: Record<string, LucideIcon> = {
   award: Award,
+  "bell-ring": BellRing,
+  handshake: Handshake,
   "calendar-check": CalendarCheck,
   camera: Camera,
   "clipboard-check": ClipboardCheck,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardPen, FileText, LogOut, Salad, Smartphone } from "lucide-react";
+import { ChevronRight, ClipboardPen, FileText, LogOut, Salad, ShieldCheck, Smartphone } from "lucide-react";
 import { exigirAluno } from "@/lib/sessao";
 import { AtivarAvisos } from "@/components/aluno/ativar-avisos";
 import { HorarioSilencioso } from "@/components/aluno/horario-silencioso";
@@ -11,7 +11,8 @@ export default async function Mais() {
   const itens = [
     { href: "/plano", icone: FileText, titulo: "Meu plano", texto: "Ciclo atual, datas da consultoria e recados." },
     ...(aluno?.tem_nutricao ? [{ href: "/nutricao", icone: Salad, titulo: "Nutrição", texto: "Seu plano alimentar em PDF." }] : []),
-    { href: null, icone: ClipboardPen, titulo: "Anamnese", texto: "Questionário inicial e de realinhamento." },
+    { href: "/anamnese", icone: ClipboardPen, titulo: "Anamnese", texto: "Questionário inicial e de realinhamento." },
+    { href: "/privacidade", icone: ShieldCheck, titulo: "Termos e privacidade", texto: "O que eu guardo, quem vê e seus direitos." },
   ];
 
   return (

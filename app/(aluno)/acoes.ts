@@ -1,10 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { exigirAluno } from "@/lib/sessao";
+import { clienteAdmin } from "@/lib/supabase/servidor";
 import { prazoDaSemana, type Respostas } from "@/lib/acompanhamento";
+import { ETAPAS, etapaPendente, limparEtapa, type RespostasAnamnese } from "@/lib/anamnese";
+import { VERSAO_TERMOS } from "@/lib/termos";
 import { hojeEmBH, situacaoDoCiclo } from "@/lib/ciclo";
-import { conquistar, premiarAcompanhamento, premiarEvolucao } from "@/lib/gamificacao";
+import { conquistar, premiarAcompanhamento, premiarAnamnese, premiarEvolucao } from "@/lib/gamificacao";
 import type { Ciclo } from "@/lib/tipos";
 
 export type Resultado = { erro?: string; ok?: string } | undefined;
@@ -95,10 +99,93 @@ export async function escolherReavaliacao(formato: "call" | "whatsapp") {
   revalidatePath("/inicio");
 }
 
-/** O app aberto pela tela inicial do celular (modo instalado) vale o broche "App instalado". */
+/** O app aberto pela tela inicial do celular (modo instalado) vale o broche "Atalho no celular". */
 export async function marcarAppInstalado() {
   const ctx = await meuContexto();
   if (ctx) await conquistar(ctx.aluno.id, "app_instalado");
+}
+
+/** O aluno confirma que instalou o app de treino (MFit ou treino.io). */
+export async function marcarAppTreino() {
+  const ctx = await meuContexto();
+  if (ctx) await conquistar(ctx.aluno.id, "app_treino");
+  revalidatePath("/inicio");
+}
+
+// Termos ---------------------------------------------------------------------
+
+export async function aceitarTermos() {
+  const s = await exigirAluno();
+  const { data: aluno } = await s.supabase.from("alunos").select("id").eq("user_id", s.user.id).maybeSingle();
+  if (!aluno) return;
+  await s.supabase.rpc("aceitar_termos", { versao: VERSAO_TERMOS });
+  await conquistar(aluno.id, "termos_aceitos");
+  redirect("/inicio");
+}
+
+// Anamnese -------------------------------------------------------------------
+
+/** Salva uma etapa. Sem id, abre o rascunho (inicial na primeira vez, realinhamento depois). */
+export async function salvarEtapaAnamnese(anamneseId: string | null, etapaId: string, bruto: Record<string, unknown>): Promise<{ erro?: string; id?: string }> {
+  const ctx = await meuContexto();
+  if (!ctx) return { erro: "Não achei seu cadastro ativo." };
+  const etapa = ETAPAS.find((e) => e.id === etapaId);
+  if (!etapa) return { erro: "Etapa inválida." };
+  const respostasEtapa = limparEtapa(etapa, bruto, ctx.aluno.id);
+
+  if (!anamneseId) {
+    const { count } = await ctx.supabase.from("anamneses").select("id", { count: "exact", head: true }).eq("aluno_id", ctx.aluno.id).neq("status", "rascunho");
+    const tipo = count ? "realinhamento" : "inicial";
+    if (tipo === "realinhamento" && etapa.soInicial) return { erro: "Etapa inválida." };
+    const { data, error } = await ctx.supabase
+      .from("anamneses")
+      .insert({ aluno_id: ctx.aluno.id, tipo, respostas: { [etapa.id]: respostasEtapa } })
+      .select("id")
+      .single();
+    if (error) return { erro: error.code === "23505" ? "Você já tem uma anamnese aberta. Recarrega a página." : "Não consegui salvar. Tenta de novo." };
+    return { id: data.id };
+  }
+
+  const { data: atual } = await ctx.supabase.from("anamneses").select("id, respostas, status").eq("id", anamneseId).maybeSingle();
+  if (!atual || atual.status === "revisada") return { erro: "Essa anamnese já foi revisada pelo Carlos." };
+  const { error } = await ctx.supabase
+    .from("anamneses")
+    .update({ respostas: { ...(atual.respostas as RespostasAnamnese), [etapa.id]: respostasEtapa } })
+    .eq("id", anamneseId);
+  return error ? { erro: "Não consegui salvar. Tenta de novo." } : { id: anamneseId };
+}
+
+export async function concluirAnamnese(anamneseId: string): Promise<{ erro?: string }> {
+  const ctx = await meuContexto();
+  if (!ctx) return { erro: "Não achei seu cadastro ativo." };
+  const { data: a } = await ctx.supabase.from("anamneses").select("id, tipo, respostas, status").eq("id", anamneseId).maybeSingle();
+  if (!a || a.status === "revisada") return { erro: "Não achei essa anamnese." };
+  const respostas = a.respostas as RespostasAnamnese;
+  if (etapaPendente(a.tipo, respostas) >= 0) return { erro: "Ainda falta responder algumas perguntas." };
+
+  if (a.status === "rascunho") {
+    const { error } = await ctx.supabase.from("anamneses").update({ status: "concluida", concluida_em: new Date().toISOString() }).eq("id", a.id);
+    if (error) return { erro: "Não consegui enviar. Tenta de novo." };
+  }
+
+  try {
+    // Endereço da nota fiscal vai para a parte que só o Carlos vê (sem apagar o que ele já tinha)
+    const dados = respostas.dados;
+    if (dados?.endereco) {
+      const admin = clienteAdmin();
+      const { data: priv } = await admin.from("dados_privados").select("logradouro, cep").eq("aluno_id", ctx.aluno.id).maybeSingle();
+      if (!priv?.logradouro && !priv?.cep) {
+        await admin.from("dados_privados").upsert({ aluno_id: ctx.aluno.id, logradouro: String(dados.endereco), cep: String(dados.cep ?? "") || null }, { onConflict: "aluno_id" });
+      }
+      if (dados.nascimento) await admin.from("alunos").update({ nascimento: String(dados.nascimento) }).eq("id", ctx.aluno.id).is("nascimento", null);
+    }
+    await premiarAnamnese(ctx.aluno.id, a.id);
+  } catch (e) {
+    console.error("pós-anamnese:", (e as Error).message);
+  }
+  revalidatePath("/anamnese");
+  revalidatePath("/inicio");
+  return {};
 }
 
 /** Notificações no celular: guarda a inscrição deste aparelho. */
@@ -109,7 +196,11 @@ export async function salvarInscricaoPush(inscricao: { endpoint: string; keys: {
   const { error } = await s.supabase.from("inscricoes_push").insert({
     user_id: s.user.id, endpoint: inscricao.endpoint, p256dh: inscricao.keys.p256dh, auth: inscricao.keys.auth, aparelho: aparelho.slice(0, 120),
   });
-  return error ? { erro: "Não consegui ativar." } : { ok: "Notificações ativadas." };
+  if (error) return { erro: "Não consegui ativar." };
+  const { data: aluno } = await s.supabase.from("alunos").select("id").eq("user_id", s.user.id).maybeSingle();
+  if (aluno) await conquistar(aluno.id, "avisos_ligados");
+  revalidatePath("/inicio");
+  return { ok: "Notificações ativadas." };
 }
 
 export async function salvarSilencio(inicio: number, fim: number) {

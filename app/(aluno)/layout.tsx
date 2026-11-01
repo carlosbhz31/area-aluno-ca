@@ -1,8 +1,14 @@
+import { redirect } from "next/navigation";
 import { MenuAluno } from "@/components/menu-aluno";
 import { exigirAluno } from "@/lib/sessao";
+import { VERSAO_TERMOS } from "@/lib/termos";
 
 export default async function LayoutAluno({ children }: { children: React.ReactNode }) {
-  await exigirAluno(); // professor e nutricionista vão para a própria área
+  const s = await exigirAluno(); // professor e nutricionista vão para a própria área
+
+  // Primeiro acesso (ou termos novos): aceitar antes de usar
+  const { data: aluno } = await s.supabase.from("alunos").select("termos_versao").eq("user_id", s.user.id).maybeSingle();
+  if (aluno && aluno.termos_versao !== VERSAO_TERMOS) redirect("/boas-vindas");
 
   return (
     <div className="min-h-dvh">

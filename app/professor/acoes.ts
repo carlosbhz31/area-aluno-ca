@@ -327,6 +327,85 @@ export async function darConquista(alunoId: string, broche: "meta_ciclo" | "reno
   revalidatePath(`/professor/alunos/${alunoId}`);
 }
 
+// Anamnese ---------------------------------------------------------------------
+
+export async function marcarAnamneseRevisada(anamneseId: string) {
+  const { supabase } = await exigirProfessor();
+  const { data } = await supabase
+    .from("anamneses")
+    .update({ status: "revisada", revisada_em: new Date().toISOString() })
+    .eq("id", anamneseId)
+    .eq("status", "concluida")
+    .select("aluno_id")
+    .maybeSingle();
+  revalidatePath(`/professor/anamneses/${anamneseId}`);
+  if (data) revalidatePath(`/professor/alunos/${data.aluno_id}`);
+  revalidatePath("/professor/hoje");
+}
+
+/** Abre uma anamnese de realinhamento já com as últimas respostas, para o aluno só atualizar. */
+export async function pedirRealinhamento(alunoId: string) {
+  const { supabase } = await exigirProfessor();
+  const { data: ultima } = await supabase
+    .from("anamneses")
+    .select("respostas")
+    .eq("aluno_id", alunoId)
+    .neq("status", "rascunho")
+    .order("criada_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { dados: _dados, ...respostas } = (ultima?.respostas ?? {}) as Record<string, unknown>;
+  const { error } = await supabase.from("anamneses").insert({ aluno_id: alunoId, tipo: "realinhamento", respostas });
+  if (!error) {
+    await avisarAluno(alunoId, {
+      tipo: "anamnese",
+      titulo: "Anamnese de realinhamento",
+      corpo: "Atualiza suas respostas para o próximo ciclo. Já deixei as anteriores preenchidas.",
+      url: "/anamnese",
+    });
+  }
+  revalidatePath(`/professor/alunos/${alunoId}`);
+}
+
+// LGPD: exclusão definitiva a pedido do aluno -----------------------------------
+
+export async function excluirDadosDoAluno(alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {
+  await exigirProfessor();
+  const admin = clienteAdmin();
+  const { data: aluno } = await admin.from("alunos").select("id, nome, user_id").eq("id", alunoId).maybeSingle();
+  if (!aluno) return { erro: "Aluno não encontrado." };
+  if (texto(f, "confirmacao")?.toLowerCase() !== aluno.nome.trim().toLowerCase()) {
+    return { erro: "Digita o nome completo do aluno, igual ao cadastro, para confirmar." };
+  }
+  if (aluno.user_id) {
+    const { data: perfil } = await admin.from("perfis").select("papel").eq("id", aluno.user_id).maybeSingle();
+    if (perfil?.papel !== "aluno") return { erro: "Esse login não é de aluno. Não apago." };
+  }
+
+  // Arquivos nas pastas privadas (fotos, documentos, contratos)
+  for (const bucket of ["fotos", "documentos", "contratos"]) {
+    const caminhos: string[] = [];
+    const listar = async (pasta: string) => {
+      const { data } = await admin.storage.from(bucket).list(pasta, { limit: 1000 });
+      for (const item of data ?? []) {
+        if (item.id) caminhos.push(`${pasta}/${item.name}`);
+        else await listar(`${pasta}/${item.name}`); // subpasta (ex.: anamnese)
+      }
+    };
+    await listar(alunoId);
+    if (caminhos.length) await admin.storage.from(bucket).remove(caminhos);
+  }
+
+  // Cadastro e tudo ligado a ele (o banco apaga em cascata), histórico de alterações e login
+  const { error } = await admin.from("alunos").delete().eq("id", alunoId);
+  if (error) return { erro: "Não consegui apagar. Nada foi removido do cadastro." };
+  await admin.from("registro_alteracoes").delete().or(`registro_id.eq.${alunoId},depois->>aluno_id.eq.${alunoId},antes->>aluno_id.eq.${alunoId}`);
+  if (aluno.user_id) await admin.auth.admin.deleteUser(aluno.user_id);
+
+  revalidatePath("/professor/alunos");
+  redirect("/professor/alunos");
+}
+
 export async function adicionarAnotacao(alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {
   const { supabase } = await exigirProfessor();
   const t = texto(f, "texto");
