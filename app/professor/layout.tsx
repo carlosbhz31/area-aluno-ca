@@ -27,10 +27,14 @@ export default async function LayoutProfessor({ children }: { children: React.Re
       </aside>
 
       {/* Barra simples para quando abrir no celular */}
-      <header className="sticky top-0 z-10 space-y-2 bg-menu px-4 py-3 text-white md:hidden">
+      {/* pt com safe-area: no app instalado do iPhone a barra ficava embaixo do relógio e não dava para tocar */}
+      <header className="sticky top-0 z-10 space-y-2 bg-menu px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white md:hidden">
         <div className="flex items-center gap-3">
           <Image src="/brand/ca-icone.png" alt="" width={28} height={28} />
           <Link href="/professor/hoje" className="font-bold">Painel do Professor</Link>
+          <form action="/auth/sair" method="post" className="ml-auto">
+            <button className="flex items-center gap-1 text-sm text-menu-texto hover:text-white"><LogOut className="size-4" /> Sair</button>
+          </form>
         </div>
         <MenuProfessor celular />
       </header>
