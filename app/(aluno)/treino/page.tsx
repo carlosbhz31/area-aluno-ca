@@ -84,6 +84,12 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
 
       <AtivarAvisos compacto />
 
+      {/* Temporário: teste do som da pausa no iPhone */}
+      <Link href="/treino/teste-som" className="cartao flex items-center justify-between p-4 text-sm font-semibold">
+        🔔 Testar o som da pausa
+        <ChevronRight className="size-5 text-texto-suave" />
+      </Link>
+
       {programa.observacoes && <p className="cartao whitespace-pre-line p-4 text-sm">{programa.observacoes}</p>}
 
       <ul className="space-y-3">
