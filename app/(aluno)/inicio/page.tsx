@@ -13,8 +13,8 @@ export default async function Inicio() {
   if (!painel) {
     return (
       <div className="mx-auto max-w-md pt-10">
-        <Vazio icone={UserX} titulo="Não achei seu cadastro">
-          Seu login funcionou, mas o cadastro ainda não está ligado a ele. Me chama no WhatsApp que eu resolvo.
+        <Vazio icone={UserX} titulo="Seu acesso não está ativo">
+          Pode ser que o cadastro esteja pausado ou ainda não ligado ao seu e-mail. Me chama no WhatsApp que eu resolvo.
         </Vazio>
       </div>
     );

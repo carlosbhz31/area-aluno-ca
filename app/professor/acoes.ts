@@ -47,6 +47,44 @@ async function garantirLogin(email: string) {
   if (error && !/already|registered|exists/i.test(error.message)) throw error;
 }
 
+/** Inativo não entra no app: bloqueia o login. Ativo ou pausado: libera. Nada do cadastro é apagado. */
+async function sincronizarAcesso(alunoId: string) {
+  const admin = clienteAdmin();
+  const { data: a } = await admin.from("alunos").select("user_id, situacao").eq("id", alunoId).single();
+  if (!a?.user_id) return;
+  const { data: perfil } = await admin.from("perfis").select("papel").eq("id", a.user_id).maybeSingle();
+  if (perfil?.papel === "professor") return; // nunca bloquear o login do professor
+  await admin.auth.admin.updateUserById(a.user_id, { ban_duration: a.situacao === "inativo" ? "876000h" : "none" });
+}
+
+export async function mudarSituacao(alunoId: string, situacao: "ativo" | "inativo") {
+  const { supabase } = await exigirProfessor();
+  await supabase.from("alunos").update({ situacao }).eq("id", alunoId);
+  await sincronizarAcesso(alunoId);
+  revalidatePath(`/professor/alunos/${alunoId}`);
+  revalidatePath("/professor/alunos");
+}
+
+export async function salvarDadosPrivados(alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  const uf = texto(f, "uf")?.toUpperCase() ?? null;
+  if (uf && !/^[A-Z]{2}$/.test(uf)) return { erro: "UF com 2 letras, ex.: MG." };
+  const { error } = await supabase.from("dados_privados").upsert({
+    aluno_id: alunoId,
+    cpf: texto(f, "cpf"),
+    cep: texto(f, "cep"),
+    logradouro: texto(f, "logradouro"),
+    numero: texto(f, "numero"),
+    complemento: texto(f, "complemento"),
+    bairro: texto(f, "bairro"),
+    cidade: texto(f, "cidade"),
+    uf,
+  });
+  if (error) return { erro: "Não consegui salvar o endereço." };
+  revalidatePath(`/professor/alunos/${alunoId}`);
+  return { ok: "Endereço salvo." };
+}
+
 export async function criarAluno(_: Resultado, f: FormData): Promise<Resultado> {
   const { supabase } = await exigirProfessor();
   const dados = dadosDoCadastro(f);
@@ -57,6 +95,7 @@ export async function criarAluno(_: Resultado, f: FormData): Promise<Resultado> 
 
   try {
     await garantirLogin(dados.email);
+    await sincronizarAcesso(data.id);
   } catch {
     return { erro: "Aluno salvo, mas não consegui liberar o login. Tenta salvar a ficha de novo." };
   }
@@ -80,8 +119,9 @@ export async function salvarCadastro(alunoId: string, _: Resultado, f: FormData)
 
   try {
     await garantirLogin(dados.email);
+    await sincronizarAcesso(alunoId);
   } catch {
-    return { erro: "Cadastro salvo, mas não consegui liberar o login desse e-mail." };
+    return { erro: "Cadastro salvo, mas não consegui atualizar o login desse e-mail." };
   }
 
   revalidatePath(`/professor/alunos/${alunoId}`);

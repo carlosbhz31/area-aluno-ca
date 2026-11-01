@@ -54,6 +54,21 @@ confere("aluno não edita o próprio cadastro", !editou || editou.length === 0);
 const { error: ePeso } = await cliente.from("registros_evolucao").insert({ aluno_id: aluno!.id, peso: 70 });
 confere("aluno registra o próprio peso", !ePeso);
 
+await admin.from("dados_privados").upsert({ aluno_id: aluno!.id, cidade: "Teste", uf: "MG" });
+const { data: endereco } = await cliente.from("dados_privados").select("*");
+confere("aluno não vê o próprio endereço/CPF", (endereco ?? []).length === 0);
+
+// Inativo: some tudo para o aluno (o cadastro continua no banco)
+await admin.from("alunos").update({ situacao: "inativo" }).eq("id", aluno!.id);
+const { data: inativoVe } = await cliente.from("alunos").select("id");
+const { data: inativoCiclo } = await cliente.from("ciclos").select("id");
+confere("aluno inativo não vê mais nada", (inativoVe ?? []).length === 0 && (inativoCiclo ?? []).length === 0);
+const { count: guardado } = await admin.from("ciclos").select("id", { count: "exact", head: true }).eq("aluno_id", aluno!.id);
+confere("dados do inativo continuam guardados", guardado === 1);
+await admin.from("alunos").update({ situacao: "ativo" }).eq("id", aluno!.id);
+const { data: reativado } = await cliente.from("ciclos").select("id");
+confere("ao reativar, o aluno volta a ver tudo", (reativado ?? []).length === 1);
+
 // Limpeza
 const { data: usuario } = await cliente.auth.getUser();
 await admin.from("alunos").delete().eq("id", aluno!.id);

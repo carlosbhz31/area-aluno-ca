@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import type { Resultado } from "@/app/professor/acoes";
 import type { Aluno, Ciclo } from "@/lib/tipos";
@@ -88,6 +88,69 @@ export function FormCiclo({ acao, ciclo }: { acao: Acao; ciclo?: Ciclo | null })
       <Campo rotulo="Link do PDF do ciclo (Drive)"><input name="link_ciclo" type="url" defaultValue={ciclo?.link_ciclo ?? ""} className="campo" /></Campo>
       <Campo rotulo="Link do prontuário (Drive)"><input name="link_prontuario" type="url" defaultValue={ciclo?.link_prontuario ?? ""} className="campo" /></Campo>
       <Rodape pendente={pendente} estado={estado} rotulo={ciclo ? "Salvar ciclo" : "Criar ciclo"} />
+    </form>
+  );
+}
+
+export function BotaoSituacao({ acao, inativo, nome }: { acao: () => Promise<void>; inativo: boolean; nome: string }) {
+  const [pendente, setPendente] = useState(false);
+  async function clicar() {
+    const pergunta = inativo
+      ? `Reativar ${nome}? O acesso volta e tudo que estava guardado aparece de novo.`
+      : `Inativar ${nome}? O acesso ao app é bloqueado, mas o cadastro e o histórico ficam guardados.`;
+    if (!window.confirm(pergunta)) return;
+    setPendente(true);
+    await acao();
+    setPendente(false);
+  }
+  return (
+    <button type="button" onClick={clicar} disabled={pendente} className={inativo ? "botao" : "botao-secundario !text-perigo"}>
+      {pendente ? <Loader2 className="size-4 animate-spin" /> : inativo ? "Reativar aluno" : "Inativar aluno"}
+    </button>
+  );
+}
+
+export type DadosPrivados = {
+  cpf: string | null; cep: string | null; logradouro: string | null; numero: string | null;
+  complemento: string | null; bairro: string | null; cidade: string | null; uf: string | null;
+};
+
+export function FormEndereco({ acao, dados }: { acao: Acao; dados: DadosPrivados | null }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  const [end, setEnd] = useState({
+    logradouro: dados?.logradouro ?? "", bairro: dados?.bairro ?? "", cidade: dados?.cidade ?? "", uf: dados?.uf ?? "",
+  });
+  const [buscando, setBuscando] = useState(false);
+
+  // Preenche rua, bairro, cidade e UF pelo CEP (ViaCEP; só o CEP sai daqui)
+  async function buscarCep(cep: string) {
+    const so = cep.replace(/\D/g, "");
+    if (so.length !== 8) return;
+    setBuscando(true);
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${so}/json/`).then((x) => x.json());
+      if (!r.erro) setEnd({ logradouro: r.logradouro ?? "", bairro: r.bairro ?? "", cidade: r.localidade ?? "", uf: r.uf ?? "" });
+    } catch {
+      // sem internet ou CEP fora do ar: preenche à mão
+    }
+    setBuscando(false);
+  }
+
+  return (
+    <form action={enviar} className="grid gap-4 sm:grid-cols-2">
+      <Campo rotulo="CPF"><input name="cpf" inputMode="numeric" defaultValue={dados?.cpf ?? ""} placeholder="000.000.000-00" className="campo" /></Campo>
+      <Campo rotulo={buscando ? "CEP (buscando…)" : "CEP"}>
+        <input name="cep" inputMode="numeric" defaultValue={dados?.cep ?? ""} placeholder="00000-000" className="campo" onBlur={(e) => buscarCep(e.target.value)} />
+      </Campo>
+      <Campo rotulo="Rua" largo><input name="logradouro" value={end.logradouro} onChange={(e) => setEnd({ ...end, logradouro: e.target.value })} className="campo" /></Campo>
+      <Campo rotulo="Número"><input name="numero" defaultValue={dados?.numero ?? ""} className="campo" /></Campo>
+      <Campo rotulo="Complemento"><input name="complemento" defaultValue={dados?.complemento ?? ""} className="campo" /></Campo>
+      <Campo rotulo="Bairro"><input name="bairro" value={end.bairro} onChange={(e) => setEnd({ ...end, bairro: e.target.value })} className="campo" /></Campo>
+      <div className="grid grid-cols-[1fr_5rem] gap-4">
+        <Campo rotulo="Cidade"><input name="cidade" value={end.cidade} onChange={(e) => setEnd({ ...end, cidade: e.target.value })} className="campo" /></Campo>
+        <Campo rotulo="UF"><input name="uf" maxLength={2} value={end.uf} onChange={(e) => setEnd({ ...end, uf: e.target.value.toUpperCase() })} className="campo" /></Campo>
+      </div>
+      <Rodape pendente={pendente} estado={estado} rotulo="Salvar endereço" />
     </form>
   );
 }

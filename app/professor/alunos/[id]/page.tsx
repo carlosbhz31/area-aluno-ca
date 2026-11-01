@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, CheckCircle2, Circle, ClipboardList, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
-  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink,
+  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
@@ -11,8 +11,8 @@ import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR, moedaBR } from "@/lib/formato";
 import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
 import { Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
-import { FormAnotacao, FormCadastro, FormCiclo } from "@/components/professor/formularios";
-import { adicionarAnotacao, editarCiclo, novoCiclo, pausarOuRetomarCiclo, salvarCadastro } from "../../acoes";
+import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, type DadosPrivados } from "@/components/professor/formularios";
+import { adicionarAnotacao, editarCiclo, mudarSituacao, novoCiclo, pausarOuRetomarCiclo, salvarCadastro, salvarDadosPrivados } from "../../acoes";
 
 export const metadata = { title: "Ficha do aluno · Painel do Professor" };
 
@@ -26,6 +26,7 @@ const NOME_TABELA: Record<string, string> = {
   registros_evolucao: "Evolução",
   documentos: "Documento",
   orientacoes: "Orientação",
+  dados_privados: "Endereço",
 };
 const NOME_ACAO: Record<string, string> = { insert: "criado", update: "alterado", delete: "removido" };
 
@@ -36,7 +37,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   const { data: aluno } = await supabase.from("alunos").select("*").eq("id", id).maybeSingle<Aluno>();
   if (!aluno) notFound();
 
-  const [ciclos, anotacoes, contratos, anamneses, acompanhamentos, evolucao, documentos, pontos, conquistas, historico] = await Promise.all([
+  const [ciclos, anotacoes, contratos, anamneses, acompanhamentos, evolucao, documentos, pontos, conquistas, historico, privados] = await Promise.all([
     supabase.from("ciclos").select("*").eq("aluno_id", id).order("numero", { ascending: false }),
     supabase.from("anotacoes_internas").select("id, texto, criada_em").eq("aluno_id", id).order("criada_em", { ascending: false }).limit(20),
     supabase.from("contratos").select("id, data, assinado").eq("aluno_id", id),
@@ -47,6 +48,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
     supabase.from("pontuacoes").select("pontos").eq("aluno_id", id),
     supabase.from("conquistas").select("broche", { count: "exact", head: true }).eq("aluno_id", id),
     supabase.from("registro_alteracoes").select("id, tabela, acao, em").or(`registro_id.eq.${id},depois->>aluno_id.eq.${id},antes->>aluno_id.eq.${id}`).order("em", { ascending: false }).limit(12),
+    supabase.from("dados_privados").select("*").eq("aluno_id", id).maybeSingle<DadosPrivados>(),
   ]);
 
   // Primeiro acesso: só dá para saber pelo serviço de login (servidor, professor já verificado)
@@ -91,8 +93,21 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             {aluno.email} · {moedaBR(aluno.valor_contratado)} · contrato {dataBR(aluno.inicio)} a {dataBR(aluno.fim)}
           </p>
         </div>
-        <Link href={`/professor/alunos/${id}/visao`} className="botao-secundario"><Eye className="size-4" /> Ver como o aluno</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/professor/alunos/${id}/visao`} className="botao-secundario"><Eye className="size-4" /> Ver como o aluno</Link>
+          <BotaoSituacao
+            acao={mudarSituacao.bind(null, id, aluno.situacao === "inativo" ? "ativo" : "inativo")}
+            inativo={aluno.situacao === "inativo"}
+            nome={aluno.nome.split(" ")[0]}
+          />
+        </div>
       </header>
+
+      {aluno.situacao === "inativo" && (
+        <p className="flex items-center gap-2 rounded-xl bg-perigo-suave px-4 py-3 text-sm text-perigo">
+          <Lock className="size-4" /> Aluno inativo: o acesso ao app está bloqueado. Cadastro e histórico continuam guardados aqui.
+        </p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
@@ -154,6 +169,12 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             <p className="mt-4 text-xs text-texto-suave">
               {aluno.notion_page_id ? "Ligado ao Notion." : "Ainda não ligado ao Notion."} {aluno.origem_id && "Importado do sistema antigo."}
             </p>
+          </Cartao>
+
+          {/* Endereço e nota fiscal: tabela que o aluno não consegue ler */}
+          <Cartao>
+            <TituloCartao icone={Lock} acao={<span className="text-xs text-texto-suave">Só você vê</span>}>Endereço e nota fiscal</TituloCartao>
+            <FormEndereco acao={salvarDadosPrivados.bind(null, id)} dados={privados.data ?? null} />
           </Cartao>
 
           {/* Etapas seguintes */}
