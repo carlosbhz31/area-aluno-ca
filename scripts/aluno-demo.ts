@@ -1,6 +1,7 @@
 // Cria (ou apaga) contas fictícias para testar as telas no site.
 // Uso: npx tsx --env-file=.env.local scripts/aluno-demo.ts criar      -> aluno demo; imprime link de acesso de uso único
 //      npx tsx --env-file=.env.local scripts/aluno-demo.ts professor  -> professor demo; imprime link de acesso
+//      npx tsx --env-file=.env.local scripts/aluno-demo.ts codigo     -> código de 6 dígitos para entrar como aluno demo no app instalado
 //      npx tsx --env-file=.env.local scripts/aluno-demo.ts apagar     -> apaga os dois e tudo deles
 // DEMO_SITE muda o endereço (padrão: o site publicado).
 
@@ -50,6 +51,10 @@ async function apagar() {
 
 if (acao === "apagar") {
   await apagar();
+} else if (acao === "codigo") {
+  // Código de 6 dígitos para entrar no app instalado (iPhone): digita o e-mail demo no app e depois este código
+  const { data } = await admin.auth.admin.generateLink({ type: "magiclink", email: EMAIL_ALUNO });
+  console.log(`E-mail: ${EMAIL_ALUNO}\nCódigo: ${data.properties?.email_otp}`);
 } else if (acao === "professor") {
   await admin.auth.admin.createUser({ email: EMAIL_PROF, email_confirm: true });
   const u = await usuarioPorEmail(EMAIL_PROF);
