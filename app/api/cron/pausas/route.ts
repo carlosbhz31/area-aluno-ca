@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
         const chegou = await enviarPush(
           p.user_id,
           { titulo: p.titulo, corpo: p.corpo, url: p.url, tipo: "pausa" },
-          { TTL: 90, urgency: "high", topic: "pausa" },
+          // Sem "topic": a Apple recusa o envio inteiro com BadWebPushTopic (testado no iPhone em 01/11/2026)
+          { TTL: 90, urgency: "high" },
         );
-        resultado = chegou ? "enviado" : "sem_aparelho";
+        resultado = chegou ? "enviado" : "falhou";
       }
       await admin.from("pausas").update({ resultado: `${resultado} (${Math.round(atraso / 100) / 10}s)` }).eq("id", p.id);
       return resultado;
