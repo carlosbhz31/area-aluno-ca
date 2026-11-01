@@ -15,7 +15,7 @@ import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, For
 import { PainelEvolucao } from "@/components/evolucao";
 import { sinaisDeAlerta, type Respostas } from "@/lib/acompanhamento";
 import {
-  adicionarAnotacao, editarCiclo, mudarSituacao, novoCiclo, pausarOuRetomarCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
+  adicionarAnotacao, darConquista, editarCiclo, mudarSituacao, novoCiclo, pausarOuRetomarCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
 } from "../../acoes";
 
 export const metadata = { title: "Ficha do aluno · Painel do Professor" };
@@ -282,6 +282,11 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           <Cartao>
             <TituloCartao icone={Trophy}>Pontos e conquistas</TituloCartao>
             <p className="text-sm"><strong className="text-xl">{totalPontos}</strong> pts · {conquistas.count ?? 0} broches</p>
+            <p className="mt-3 text-xs text-texto-suave">Broches que dependem de você:</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <form action={darConquista.bind(null, id, "meta_ciclo")}><button className="botao-secundario !py-1.5 text-sm">Meta do ciclo batida</button></form>
+              <form action={darConquista.bind(null, id, "renovacao")}><button className="botao-secundario !py-1.5 text-sm">Renovou</button></form>
+            </div>
           </Cartao>
 
           <Cartao>

@@ -10,6 +10,14 @@ export const FAIXAS_PADRAO: FaixaLiga[] = [
   { liga: "Mestre", min: 600 },
 ];
 
+/** Quem subiu fica protegido até o fim da semana: a liga usa o maior entre os pontos de agora
+ *  e os do começo da semana. "Faltam" sempre conta a partir dos pontos de agora. */
+export function ligaProtegida(agora: number, inicioDaSemana: number, faixas: FaixaLiga[] = FAIXAS_PADRAO) {
+  const base = ligaPorPontos(Math.max(agora, inicioDaSemana), faixas);
+  const proxima = [...faixas].sort((a, b) => a.min - b.min).find((f) => f.liga === base.proxima);
+  return { ...base, faltam: proxima ? Math.max(0, proxima.min - agora) : 0 };
+}
+
 /** Liga atual e quanto falta para a próxima. */
 export function ligaPorPontos(pontos: number, faixas: FaixaLiga[] = FAIXAS_PADRAO) {
   const ordenadas = [...faixas].sort((a, b) => a.min - b.min);

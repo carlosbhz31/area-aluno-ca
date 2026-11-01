@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { CalendarDays, ChevronRight, ClipboardList, Dumbbell, Flag, MessageCircleReply, MessageSquareText, Shield, Sparkles, Trophy } from "lucide-react";
 import { CartaoReavaliacao } from "./aluno/cartao-reavaliacao";
+import { AtivarAvisos } from "./aluno/ativar-avisos";
 import type { PainelAluno } from "@/lib/dados-aluno";
 import { situacaoDoCiclo, emRetaFinal, hojeEmBH, type SituacaoCiclo } from "@/lib/ciclo";
-import { ligaPorPontos } from "@/lib/ligas";
+import { ligaProtegida } from "@/lib/ligas";
 import { dataBR, primeiroNome, saudacao } from "@/lib/formato";
 import { DIAS } from "@/lib/tipos";
 import { Barra, Cartao, TituloCartao, Vazio } from "./ui";
@@ -38,7 +39,7 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
   const s = situacaoDoCiclo(painel.ciclo, hoje);
   const passo = proximoPasso(painel, s);
   const mostrarReavaliacao = (emRetaFinal(s) && s.tipo === "em_andamento" && !s.pausado) || s.tipo === "encerrado";
-  const liga = ligaPorPontos(painel.pontos, painel.faixas);
+  const liga = ligaProtegida(painel.pontos, painel.pontosInicioSemana, painel.faixas);
   const app = painel.aluno.app_treino ? painel.apps[painel.aluno.app_treino] : null;
 
   return (
@@ -58,6 +59,8 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
           <ChevronRight className="size-5" />
         </Link>
       )}
+
+      {!preview && <AtivarAvisos compacto />}
 
       {mostrarReavaliacao && (
         <CartaoReavaliacao escolha={painel.reavaliacao} contato={painel.contato} primeiroNome={primeiroNome(painel.aluno.nome)} preview={preview} />

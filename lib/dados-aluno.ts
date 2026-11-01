@@ -3,18 +3,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Aluno, AppsTreino, Ciclo, FaixaLiga } from "./tipos";
 import { FAIXAS_PADRAO } from "./ligas";
 import { prazoDaSemana, type PrazoSemana } from "./acompanhamento";
+import { hojeEmBH } from "./ciclo";
 
 const APPS_PADRAO: AppsTreino = {
   mfit: { nome: "MFit", web: "https://mfitpersonal.com.br", ios: null, android: null },
   treinoio: { nome: "treino.io", web: "https://treino.io", ios: null, android: null },
 };
 
-export type Contato = { whatsapp: string | null; agenda: string | null };
+/** Segunda-feira 00h desta semana (horário de BH), em ISO. */
+function inicioDaSemana() {
+  const hoje = hojeEmBH();
+  const d = new Date(hoje + "T03:00:00Z"); // 00h em BH
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString();
+}
+
+export type Contato ={ whatsapp: string | null; agenda: string | null };
 
 export type PainelAluno = {
   aluno: Aluno;
   ciclo: Ciclo | null;
   pontos: number;
+  pontosInicioSemana: number;
   faixas: FaixaLiga[];
   apps: AppsTreino;
   conquistas: { broche: string; desbloqueada_em: string; nome: string; icone: string; raridade: string }[];
@@ -37,7 +47,7 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
   const umaSemanaAtras = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const [ciclo, pontos, config, conquistas, orientacao, respondido] = await Promise.all([
     supabase.from("ciclos").select("*").eq("aluno_id", aluno.id).eq("ativo", true).maybeSingle<Ciclo>(),
-    supabase.from("pontuacoes").select("pontos").eq("aluno_id", aluno.id),
+    supabase.from("pontuacoes").select("pontos, data").eq("aluno_id", aluno.id),
     supabase.from("configuracoes").select("chave, valor").in("chave", ["faixas_ligas", "apps_treino", "dia_padrao_acompanhamento", "whatsapp_carlos", "link_agenda"]),
     supabase
       .from("conquistas")
@@ -86,6 +96,7 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
     aluno,
     ciclo: cicloAtivo,
     pontos: (pontos.data ?? []).reduce((soma, p) => soma + (p.pontos ?? 0), 0),
+    pontosInicioSemana: (pontos.data ?? []).filter((p) => Date.parse(p.data) < Date.parse(inicioDaSemana())).reduce((soma, p) => soma + (p.pontos ?? 0), 0),
     faixas: (mapaConfig.faixas_ligas as FaixaLiga[]) ?? FAIXAS_PADRAO,
     apps: { ...APPS_PADRAO, ...((mapaConfig.apps_treino as AppsTreino) ?? {}) },
     conquistas: (conquistas.data ?? []).map((c) => {

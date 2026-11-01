@@ -35,6 +35,7 @@ const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", 
 const cliente = createClient(URL, ANON, { auth: { persistSession: false } });
 const { error: eLogin } = await cliente.auth.verifyOtp({ token_hash: link.properties?.hashed_token ?? "", type: "email" });
 confere("aluno fictício consegue entrar", !eLogin);
+const usuarioTeste = (await cliente.auth.getUser()).data.user?.id;
 
 const { data: vistos } = await cliente.from("alunos").select("id");
 confere(`aluno vê só 1 cadastro (de ${totalAlunos! + 1})`, vistos?.length === 1 && vistos[0].id === aluno!.id);
@@ -92,6 +93,16 @@ if (outroCiclo) {
 }
 const { error: ePdf } = await cliente.storage.from("documentos").upload(`${aluno!.id}/plano.pdf`, new Blob(["%PDF"], { type: "application/pdf" }), { contentType: "application/pdf" });
 confere("aluno não sobe PDF de plano alimentar", !!ePdf);
+
+// Etapa 3: avisos e jogo
+const { error: ePushAlheio } = await cliente.from("inscricoes_push").insert({ user_id: (await admin.from("perfis").select("id").eq("papel", "professor").limit(1).single()).data!.id, endpoint: "https://exemplo.invalid/x", p256dh: "x", auth: "x" });
+confere("aluno não cadastra aviso no aparelho de outro", !!ePushAlheio);
+const { data: pushVistos } = await cliente.from("inscricoes_push").select("user_id");
+confere("aluno só vê as próprias inscrições de aviso", (pushVistos ?? []).length === 0);
+const { error: eConquista } = await cliente.from("conquistas").insert({ aluno_id: aluno!.id, broche: "um_ano" });
+confere("aluno não se dá broche", !!eConquista);
+const { data: notiAlheias } = await cliente.from("notificacoes").select("destinatario");
+confere("aluno só vê os próprios avisos", (notiAlheias ?? []).every((n) => n.destinatario === (usuarioTeste ?? "")));
 
 const { data: listaNutriAluno } = await cliente.rpc("alunos_da_nutricao");
 confere("aluno não vê a lista da nutrição", (listaNutriAluno ?? []).length === 0);

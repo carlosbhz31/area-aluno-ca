@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ChevronRight, ClipboardPen, FileText, LogOut, Salad, Smartphone } from "lucide-react";
 import { exigirAluno } from "@/lib/sessao";
+import { AtivarAvisos } from "@/components/aluno/ativar-avisos";
+import { HorarioSilencioso } from "@/components/aluno/horario-silencioso";
 
 export default async function Mais() {
   const s = await exigirAluno();
-  const { data: aluno } = await s.supabase.from("alunos").select("tem_nutricao").eq("user_id", s.user.id).maybeSingle();
+  const { data: aluno } = await s.supabase.from("alunos").select("tem_nutricao, silencio_inicio, silencio_fim").eq("user_id", s.user.id).maybeSingle();
 
   const itens = [
     { href: "/plano", icone: FileText, titulo: "Meu plano", texto: "Ciclo atual, datas da consultoria e recados." },
@@ -35,6 +37,9 @@ export default async function Mais() {
           );
         })}
       </ul>
+
+      <AtivarAvisos />
+      {aluno && <HorarioSilencioso inicio={aluno.silencio_inicio} fim={aluno.silencio_fim} />}
 
       <section className="cartao p-5">
         <h2 className="flex items-center gap-2 font-semibold"><Smartphone className="size-5 text-marca" /> Coloca o app na tela inicial</h2>

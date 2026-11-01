@@ -192,6 +192,39 @@ export function FormConfiguracoes({ acao, valores }: { acao: Acao; valores: { wh
   );
 }
 
+export function FormJogo({
+  acao, regras, nomes, faixas,
+}: { acao: Acao; regras: Record<string, number>; nomes: Record<string, string>; faixas: { liga: string; min: number }[] }) {
+  const [estado, enviar, pendente] = useActionState(acao, undefined);
+  return (
+    <form action={enviar} className="space-y-5">
+      <div>
+        <p className="rotulo mb-2">Pontos por ação</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {Object.entries(nomes).map(([k, nome]) => (
+            <label key={k} className="flex items-center justify-between gap-3 rounded-xl border border-borda px-3 py-2 text-sm">
+              <span>{nome}</span>
+              <input name={`regra_${k}`} type="number" min={-50} max={50} defaultValue={regras[k] ?? 0} className="campo !w-20 !py-1.5 text-center" />
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="rotulo mb-2">Pontos para entrar em cada liga (provisório)</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {faixas.map((f, i) => (
+            <label key={f.liga} className="rounded-xl border border-borda px-3 py-2 text-sm">
+              <span className="block font-semibold">{f.liga}</span>
+              <input name={`liga_${f.liga}`} type="number" min={0} defaultValue={f.min} disabled={i === 0} className="campo mt-1 !py-1.5" />
+            </label>
+          ))}
+        </div>
+      </div>
+      <Rodape pendente={pendente} estado={estado} rotulo="Salvar pontos e ligas" />
+    </form>
+  );
+}
+
 export function FormNutricionista({ acao }: { acao: Acao }) {
   const [estado, enviar, pendente] = useActionState(acao, undefined);
   return (

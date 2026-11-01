@@ -8,9 +8,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test lib/ciclo.test.ts lib/acompanhamento.test.ts",
+    "test": "node --import tsx --test lib/ciclo.test.ts lib/acompanhamento.test.ts lib/jogo.test.ts",
     "testar:seguranca": "tsx --env-file=.env.local scripts/testar-seguranca.ts",
-    "professor":"tsx --env-file=.env.local scripts/definir-professor.ts",
+    "professor": "tsx --env-file=.env.local scripts/definir-professor.ts",
     "importar:gpt": "tsx --env-file=.env.local scripts/importar-gpt.ts",
     "importar:notion": "tsx --env-file=.env.local scripts/importar-notion.ts"
   },
@@ -19,15 +19,19 @@
     "@supabase/supabase-js": "^2.118.0",
     "lucide-react": "^1.66.0",
     "next": "^15.5.28",
+    "nodemailer": "^10.3.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/web-push": "^3.6.4",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"

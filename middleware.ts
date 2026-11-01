@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./lib/env";
 
-const ROTAS_PUBLICAS = ["/entrar", "/auth", "/manifest.webmanifest", "/brand", "/icones"];
+const ROTAS_PUBLICAS = ["/entrar", "/auth", "/manifest.webmanifest", "/brand", "/icones", "/sw.js", "/api/cron"];
 
 export async function middleware(request: NextRequest) {
   let resposta = NextResponse.next({ request });

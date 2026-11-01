@@ -1,10 +1,12 @@
-import { Salad, Settings, UserX } from "lucide-react";
+import { Salad, Settings, Trophy, UserX } from "lucide-react";
+import { NOME_ACAO_PONTOS, REGRAS_PADRAO } from "@/lib/gamificacao";
+import { FAIXAS_PADRAO } from "@/lib/ligas";
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { dataBR } from "@/lib/formato";
 import { Cartao, TituloCartao } from "@/components/ui";
-import { FormConfiguracoes, FormNutricionista } from "@/components/professor/formularios";
-import { liberarNutricionista, removerNutricionista, salvarConfiguracoes } from "../acoes";
+import { FormConfiguracoes, FormJogo, FormNutricionista } from "@/components/professor/formularios";
+import { liberarNutricionista, removerNutricionista, salvarConfiguracoes, salvarJogo } from "../acoes";
 
 export const metadata = { title: "Configurações · Painel do Professor" };
 
@@ -12,6 +14,8 @@ export default async function Configuracoes() {
   const { supabase } = await exigirProfessor();
   const { data } = await supabase.from("configuracoes").select("chave, valor").in("chave", ["whatsapp_carlos", "link_agenda", "dia_padrao_acompanhamento"]);
   const c = Object.fromEntries((data ?? []).map((x) => [x.chave, x.valor]));
+  const { data: dadosJogo } = await supabase.from("configuracoes").select("chave, valor").in("chave", ["regras_pontos", "faixas_ligas"]);
+  const jogo = Object.fromEntries((dadosJogo ?? []).map((x) => [x.chave, x.valor]));
 
   // Nutricionistas com acesso (e-mail vem do serviço de login)
   const admin = clienteAdmin();
@@ -35,6 +39,16 @@ export default async function Configuracoes() {
         <FormConfiguracoes
           acao={salvarConfiguracoes}
           valores={{ whatsapp: (c.whatsapp_carlos as string) || null, agenda: (c.link_agenda as string) || null, dia: Number(c.dia_padrao_acompanhamento ?? 1) }}
+        />
+      </Cartao>
+
+      <Cartao>
+        <TituloCartao icone={Trophy}>Pontos e ligas</TituloCartao>
+        <FormJogo
+          acao={salvarJogo}
+          regras={{ ...REGRAS_PADRAO, ...((jogo.regras_pontos as Record<string, number>) ?? {}) }}
+          nomes={NOME_ACAO_PONTOS}
+          faixas={(jogo.faixas_ligas as { liga: string; min: number }[]) ?? FAIXAS_PADRAO}
         />
       </Cartao>
 

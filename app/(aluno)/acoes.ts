@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { exigirAluno } from "@/lib/sessao";
 import { prazoDaSemana, type Respostas } from "@/lib/acompanhamento";
+import { hojeEmBH, situacaoDoCiclo } from "@/lib/ciclo";
+import { conquistar, premiarAcompanhamento, premiarEvolucao } from "@/lib/gamificacao";
 import type { Ciclo } from "@/lib/tipos";
 
 export type Resultado = { erro?: string; ok?: string } | undefined;
@@ -56,13 +58,27 @@ export async function enviarAcompanhamento(_: Resultado, f: FormData): Promise<R
     return { erro: "Faltou responder treinos, aderência, sono ou energia." };
   }
 
-  const { error } = await ctx.supabase.from("acompanhamentos").insert({
-    aluno_id: ctx.aluno.id,
-    ciclo_id: prazo.tipo === "ativo" ? ctx.ciclo!.id : null,
-    semana: prazo.tipo === "ativo" ? prazo.semana : null,
-    respostas,
-  });
+  const { data: enviado, error } = await ctx.supabase
+    .from("acompanhamentos")
+    .insert({
+      aluno_id: ctx.aluno.id,
+      ciclo_id: prazo.tipo === "ativo" ? ctx.ciclo!.id : null,
+      semana: prazo.tipo === "ativo" ? prazo.semana : null,
+      respostas,
+    })
+    .select("id, ciclo_id, semana")
+    .single();
   if (error) return { erro: error.code === "23505" ? "Você já mandou o acompanhamento desta semana." : "Não consegui enviar. Tenta de novo." };
+
+  try {
+    await premiarAcompanhamento(
+      ctx.aluno.id,
+      { ...enviado, respostas },
+      prazo.tipo === "ativo" ? { diasAtraso: prazo.diasAtraso, semanasDoCiclo: ctx.ciclo!.semanas } : null,
+    );
+  } catch (e) {
+    console.error("pontos do acompanhamento:", (e as Error).message); // o envio vale mesmo se a pontuação falhar
+  }
 
   revalidatePath("/acompanhamento");
   revalidatePath("/inicio");
@@ -77,6 +93,29 @@ export async function escolherReavaliacao(formato: "call" | "whatsapp") {
     { onConflict: "ciclo_id" },
   );
   revalidatePath("/inicio");
+}
+
+/** O app aberto pela tela inicial do celular (modo instalado) vale o broche "App instalado". */
+export async function marcarAppInstalado() {
+  const ctx = await meuContexto();
+  if (ctx) await conquistar(ctx.aluno.id, "app_instalado");
+}
+
+/** Notificações no celular: guarda a inscrição deste aparelho. */
+export async function salvarInscricaoPush(inscricao: { endpoint: string; keys: { p256dh: string; auth: string } }, aparelho: string) {
+  const s = await exigirAluno();
+  if (!inscricao?.endpoint?.startsWith("https://")) return { erro: "Inscrição inválida." };
+  await s.supabase.from("inscricoes_push").delete().eq("endpoint", inscricao.endpoint);
+  const { error } = await s.supabase.from("inscricoes_push").insert({
+    user_id: s.user.id, endpoint: inscricao.endpoint, p256dh: inscricao.keys.p256dh, auth: inscricao.keys.auth, aparelho: aparelho.slice(0, 120),
+  });
+  return error ? { erro: "Não consegui ativar." } : { ok: "Notificações ativadas." };
+}
+
+export async function salvarSilencio(inicio: number, fim: number) {
+  const s = await exigirAluno();
+  await s.supabase.rpc("mudar_silencio", { hora_inicio: inicio, hora_fim: fim });
+  revalidatePath("/mais");
 }
 
 /** As fotos já foram enviadas pelo navegador direto para a pasta privada do aluno; aqui só registra. */
@@ -108,6 +147,23 @@ export async function registrarEvolucao(_: Resultado, f: FormData): Promise<Resu
 
   const { error } = await ctx.supabase.from("registros_evolucao").insert(registro);
   if (error) return { erro: "Não consegui salvar. Tenta de novo." };
+
+  try {
+    const s = situacaoDoCiclo(ctx.ciclo);
+    const fimDeCiclo = (s.tipo === "em_andamento" && s.semana >= s.total - 1) || s.tipo === "encerrado";
+    await premiarEvolucao(
+      ctx.aluno.id,
+      {
+        data: registro.data ?? hojeEmBH(),
+        peso: registro.peso,
+        medidas: registro.medidas,
+        temFotos: !!(registro.foto_frente_path || registro.foto_lado_path || registro.foto_costas_path),
+      },
+      ctx.ciclo ? { id: ctx.ciclo.id, fimDeCiclo } : null,
+    );
+  } catch (e) {
+    console.error("pontos da evolução:", (e as Error).message);
+  }
   revalidatePath("/evolucao");
   return { ok: "Registrado!" };
 }

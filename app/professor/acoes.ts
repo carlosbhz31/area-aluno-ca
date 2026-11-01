@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { hojeEmBH } from "@/lib/ciclo";
+import { avisarAluno } from "@/lib/notificar";
+import { conquistar, REGRAS_PADRAO } from "@/lib/gamificacao";
 
 export type Resultado = { erro?: string; ok?: string } | undefined;
 
@@ -193,6 +195,7 @@ export async function responderAcompanhamento(id: string, alunoId: string, _: Re
     .update({ resposta_professor: resposta, respondido_em: new Date().toISOString(), resposta_lida_em: null, atencao: f.get("atencao") === "on" })
     .eq("id", id);
   if (error) return { erro: "Não consegui salvar a resposta." };
+  await avisarAluno(alunoId, { tipo: "resposta", titulo: "Respondi seu acompanhamento", corpo: resposta.slice(0, 120), url: "/acompanhamento", referencia: `${id}-${Date.now()}` });
   revalidatePath("/professor/hoje");
   revalidatePath(`/professor/alunos/${alunoId}`);
   revalidatePath(`/professor/acompanhamentos/${id}`);
@@ -204,8 +207,16 @@ export async function publicarOrientacao(alunoId: string | null, _: Resultado, f
   const { supabase } = await exigirProfessor();
   const t = texto(f, "texto");
   if (!t) return { erro: "Escreve o recado antes de publicar." };
-  const { error } = await supabase.from("orientacoes").insert({ aluno_id: alunoId, texto: t });
+  const { data: orient, error } = await supabase.from("orientacoes").insert({ aluno_id: alunoId, texto: t }).select("id").single();
   if (error) return { erro: "Não consegui publicar." };
+
+  const aviso = { tipo: "orientacao", titulo: "Recado novo do Carlos", corpo: t.slice(0, 120), url: "/inicio", referencia: orient.id };
+  if (alunoId) {
+    await avisarAluno(alunoId, aviso);
+  } else {
+    const { data: todos } = await clienteAdmin().from("alunos").select("id").neq("situacao", "inativo").not("user_id", "is", null);
+    await Promise.all((todos ?? []).map((a) => avisarAluno(a.id, aviso)));
+  }
   revalidatePath("/professor/hoje");
   if (alunoId) revalidatePath(`/professor/alunos/${alunoId}`);
   return { ok: alunoId ? "Publicado no Início do aluno." : "Publicado no Início de todos." };
@@ -224,6 +235,7 @@ export async function registrarDocumento(alunoId: string, caminho: string, titul
   if (error) return { erro: "O PDF subiu, mas não consegui registrar." };
   // Quem recebe plano alimentar passa a ver a área de Nutrição
   await supabase.from("alunos").update({ tem_nutricao: true }).eq("id", alunoId).eq("tem_nutricao", false);
+  await avisarAluno(alunoId, { tipo: "documento", titulo: "Seu plano alimentar chegou", corpo: titulo || "Plano alimentar novo na área de Nutrição.", url: "/nutricao", referencia: caminho });
   revalidatePath(`/professor/alunos/${alunoId}`);
   return { ok: "PDF publicado na área de Nutrição do aluno." };
 }
@@ -284,6 +296,35 @@ export async function removerNutricionista(id: string) {
   if (perfil?.papel !== "nutricionista") return;
   await admin.auth.admin.deleteUser(id); // os PDFs que ela publicou continuam com os alunos
   revalidatePath("/professor/configuracoes");
+}
+
+/** Regras de pontos e faixas das ligas (valem a partir de agora; pontos já lançados não mudam). */
+export async function salvarJogo(_: Resultado, f: FormData): Promise<Resultado> {
+  const { supabase } = await exigirProfessor();
+  const regras = Object.fromEntries(
+    Object.keys(REGRAS_PADRAO).map((k) => [k, Math.max(-50, Math.min(50, Math.round(Number(f.get(`regra_${k}`) ?? 0)) || 0))]),
+  );
+  const ligas = ["Ferro", "Bronze", "Prata", "Ouro", "Platina", "Diamante", "Mestre"].map((liga, i) => ({
+    liga,
+    min: i === 0 ? 0 : Math.max(1, Math.round(Number(f.get(`liga_${liga}`) ?? 0)) || 0),
+  }));
+  for (let i = 1; i < ligas.length; i++) {
+    if (ligas[i].min <= ligas[i - 1].min) return { erro: `${ligas[i].liga} precisa de mais pontos que ${ligas[i - 1].liga}.` };
+  }
+  const { error } = await supabase.from("configuracoes").upsert([
+    { chave: "regras_pontos", valor: regras },
+    { chave: "faixas_ligas", valor: ligas },
+  ]);
+  if (error) return { erro: "Não consegui salvar." };
+  revalidatePath("/professor/configuracoes");
+  return { ok: "Salvo." };
+}
+
+/** Broches que dependem do olhar do Carlos (meta do ciclo, renovação). */
+export async function darConquista(alunoId: string, broche: "meta_ciclo" | "renovacao") {
+  await exigirProfessor();
+  await conquistar(alunoId, broche);
+  revalidatePath(`/professor/alunos/${alunoId}`);
 }
 
 export async function adicionarAnotacao(alunoId: string, _: Resultado, f: FormData): Promise<Resultado> {

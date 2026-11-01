@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirNutricionista } from "@/lib/sessao";
+import { avisarAluno } from "@/lib/notificar";
 
 export type Resultado = { erro?: string; ok?: string } | undefined;
 
@@ -17,6 +18,7 @@ export async function registrarPlanoNutri(alunoId: string, caminho: string, titu
     aluno_id: alunoId, tipo: "plano_alimentar", titulo: titulo || "Plano alimentar", arquivo_path: caminho, versao: (ultima?.versao ?? 0) + 1,
   });
   if (error) return { erro: "O PDF subiu, mas não consegui registrar. Avisa o Carlos." };
+  await avisarAluno(alunoId, { tipo: "documento", titulo: "Seu plano alimentar chegou", corpo: titulo || "Plano alimentar novo na área de Nutrição.", url: "/nutricao", referencia: caminho });
   revalidatePath("/nutri");
   return { ok: "Plano publicado. O aluno já vê na área de Nutrição." };
 }

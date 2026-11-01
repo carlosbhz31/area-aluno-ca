@@ -3,6 +3,7 @@ import { InicioAluno } from "@/components/inicio-aluno";
 import { Vazio } from "@/components/ui";
 import { carregarPainelAluno } from "@/lib/dados-aluno";
 import { exigirAluno } from "@/lib/sessao";
+import { conquistasDeTempo } from "@/lib/gamificacao";
 
 export const metadata = { title: "Início · Área do Aluno CA" };
 
@@ -20,5 +21,10 @@ export default async function Inicio() {
     );
   }
 
+  try {
+    await conquistasDeTempo(painel.aluno); // 6 meses / 1 ano de consultoria
+  } catch {
+    // não atrapalha a tela
+  }
   return <InicioAluno painel={painel} />;
 }
