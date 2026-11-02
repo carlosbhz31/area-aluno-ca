@@ -75,7 +75,7 @@ export function ExecucaoTreino(p: {
   // Pip do fim da pausa. Padrão: por cima da música, sem pausar. Quem quer o pip até com a tela
   // bloqueada escolhe o modo "bloqueada" (aí o celular pausa a música). Ver lib/som-pausa.
   const som = useRef<HTMLAudioElement | null>(null);
-  const [modoPip, setModoPip] = useState<ModoPip>("musica");
+  const [modoPip, setModoPip] = useState<ModoPip>("desligado"); // padrão: o bip para a música dos alunos
   const tocou = useRef(true);
   const [video, setVideo] = useState<{ url: string; titulo: string } | null>(null);
   const fecharVideo = useCallback(() => setVideo(null), []);
@@ -106,7 +106,7 @@ export function ExecucaoTreino(p: {
     }
     try {
       const modo = localStorage.getItem("ca-pip-modo");
-      if (modo === "0") setModoPip("desligado");
+      if (modo === "musica") setModoPip("musica");
       else if (modo === "bloqueada") setModoPip("bloqueada");
       const salvo = JSON.parse(localStorage.getItem(chaveLocal) ?? "null") as Record<string, Valor> | null;
       if (salvo) {
