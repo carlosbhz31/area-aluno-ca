@@ -71,33 +71,57 @@ export function pararPausa(el: HTMLAudioElement) {
 export type ModoPip = "musica" | "bloqueada" | "desligado";
 
 let contexto: AudioContext | null = null;
-let agendado: AudioBufferSourceNode | null = null;
+let timer: ReturnType<typeof setTimeout> | null = null;
 
-export function cancelarPipMisturado() {
+/** iPhone (Safari 16.4+): "ambient" = o som do site mistura com a música em vez de tomar a vez dela. */
+function misturarComMusica() {
   try {
-    agendado?.stop();
+    const n = navigator as Navigator & { audioSession?: { type: string } };
+    if (n.audioSession) n.audioSession.type = "ambient";
   } catch {
-    // já tinha tocado
+    // ignora
   }
-  agendado = null;
 }
 
-/** Agenda o pip para daqui a `segundos`, sem tirar a vez da música. A 1ª vez precisa ser num toque da pessoa. */
+/** Liga o som do site só pelo tempo do pip e desliga logo depois: enquanto ele está ligado,
+ *  o celular pode tratar o site como "tocando" e pausar o Spotify. */
+async function tocarAgora(ctx: AudioContext) {
+  misturarComMusica();
+  await ctx.resume();
+  const som = pip();
+  const buffer = ctx.createBuffer(1, som.length, TAXA);
+  buffer.getChannelData(0).set(som);
+  const fonte = ctx.createBufferSource();
+  fonte.buffer = buffer;
+  fonte.connect(ctx.destination);
+  fonte.onended = () => void ctx.suspend().catch(() => {});
+  fonte.start();
+}
+
+export function cancelarPipMisturado() {
+  if (timer) clearTimeout(timer);
+  timer = null;
+}
+
+/** Agenda o pip para daqui a `segundos` sem pausar a música. A 1ª vez precisa ser num toque da pessoa
+ *  (é quando o celular libera o som); depois o som fica desligado até a hora do pip. */
 export function agendarPipMisturado(segundos: number) {
   cancelarPipMisturado();
   if (segundos <= 0) return;
   const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return;
-  contexto ??= new Ctx();
-  void contexto.resume().catch(() => {});
-  const som = pip();
-  const buffer = contexto.createBuffer(1, som.length, TAXA);
-  buffer.getChannelData(0).set(som);
-  const fonte = contexto.createBufferSource();
-  fonte.buffer = buffer;
-  fonte.connect(contexto.destination);
-  fonte.start(contexto.currentTime + segundos);
-  agendado = fonte;
+  if (!contexto) {
+    misturarComMusica();
+    contexto = new Ctx();
+  }
+  const ctx = contexto;
+  // libera o som dentro do toque e desliga em seguida (silêncio não precisa ocupar o áudio do celular)
+  if (ctx.state !== "running") void ctx.resume().then(() => ctx.suspend()).catch(() => {});
+  else void ctx.suspend().catch(() => {});
+  timer = setTimeout(() => {
+    timer = null;
+    if (document.visibilityState === "visible") void tocarAgora(ctx).catch(() => {});
+  }, segundos * 1000);
 }
 
 /** Começo (ou ajuste) da pausa, chamado num toque da pessoa. */

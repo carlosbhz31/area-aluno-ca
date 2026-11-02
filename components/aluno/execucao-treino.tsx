@@ -105,7 +105,7 @@ export function ExecucaoTreino(p: {
       }
     }
     try {
-      const modo = localStorage.getItem("ca-pip-pausa");
+      const modo = localStorage.getItem("ca-pip-modo");
       if (modo === "0") setModoPip("desligado");
       else if (modo === "bloqueada") setModoPip("bloqueada");
       const salvo = JSON.parse(localStorage.getItem(chaveLocal) ?? "null") as Record<string, Valor> | null;
@@ -154,7 +154,7 @@ export function ExecucaoTreino(p: {
     const novo: ModoPip = modoPip === "musica" ? "bloqueada" : modoPip === "bloqueada" ? "desligado" : "musica";
     setModoPip(novo);
     try {
-      localStorage.setItem("ca-pip-pausa", novo === "desligado" ? "0" : novo);
+      localStorage.setItem("ca-pip-modo", novo === "desligado" ? "0" : novo);
     } catch {
       // ignora
     }
