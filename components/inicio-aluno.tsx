@@ -8,7 +8,7 @@ import { situacaoDoCiclo, emRetaFinal, hojeEmBH, type SituacaoCiclo } from "@/li
 import { ligaProtegida } from "@/lib/ligas";
 import { dataBR, primeiroNome, saudacao } from "@/lib/formato";
 import { DIAS } from "@/lib/tipos";
-import { Barra, Cartao, TituloCartao, Vazio } from "./ui";
+import { Avatar, Barra, Cartao, TituloCartao, Vazio } from "./ui";
 import { BotaoTreino } from "./botao-treino";
 import { IconeBroche } from "./icone-broche";
 
@@ -45,9 +45,12 @@ export function InicioAluno({ painel, preview = false }: { painel: PainelAluno; 
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 lg:max-w-4xl">
-      <header className="pt-2">
-        <p className="text-sm text-texto-suave">{saudacao()},</p>
-        <h1 className="text-2xl font-bold">{primeiroNome(painel.aluno.nome)}</h1>
+      <header className="flex items-center gap-3 pt-2">
+        {preview ? <Avatar nome={painel.aluno.nome} url={painel.fotoUrl} className="size-12 text-base" /> : <Link href="/mais" aria-label="Foto de perfil"><Avatar nome={painel.aluno.nome} url={painel.fotoUrl} className="size-12 text-base" /></Link>}
+        <div>
+          <p className="text-sm text-texto-suave">{saudacao()},</p>
+          <h1 className="text-2xl font-bold">{primeiroNome(painel.aluno.nome)}</h1>
+        </div>
       </header>
 
       {painel.respostaNova && (

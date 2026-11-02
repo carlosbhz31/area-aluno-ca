@@ -3,9 +3,10 @@ import { AlertTriangle, Plus, Search, UserCheck, UserMinus, PauseCircle, Users }
 import { exigirProfessor } from "@/lib/sessao";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { alertasDoAluno } from "@/lib/atencao";
-import { dataBR, iniciais } from "@/lib/formato";
+import { dataBR } from "@/lib/formato";
 import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
-import { Barra, Selo, Vazio } from "@/components/ui";
+import { Avatar, Barra, Selo, Vazio } from "@/components/ui";
+import { linksFotoPerfil } from "@/lib/foto-perfil";
 
 export const metadata = { title: "Alunos · Painel do Professor" };
 
@@ -35,6 +36,7 @@ export default async function Alunos({ searchParams }: { searchParams: Promise<F
     return true;
   });
 
+  const fotos = await linksFotoPerfil(lista.map((t) => t.aluno.foto_perfil));
   const conta = (s: string) => todos.filter((t) => t.aluno.situacao === s).length;
   const indicadores = [
     { rotulo: "Ativos", valor: conta("ativo"), icone: UserCheck, cor: "text-ok" },
@@ -109,7 +111,7 @@ export default async function Alunos({ searchParams }: { searchParams: Promise<F
                   <tr key={aluno.id} className="border-b border-borda last:border-0 hover:bg-fundo">
                     <td className="px-4 py-3">
                       <Link href={`/professor/alunos/${aluno.id}`} className="flex items-center gap-3">
-                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-marca-suave text-xs font-bold text-marca">{iniciais(aluno.nome)}</span>
+                        <Avatar nome={aluno.nome} url={aluno.foto_perfil ? fotos[aluno.foto_perfil] : null} className="size-9 text-xs" />
                         <span>
                           <span className="block font-semibold hover:text-marca">{aluno.nome}</span>
                           <span className="block text-xs text-texto-suave">{aluno.email}</span>

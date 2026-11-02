@@ -10,7 +10,8 @@ import { situacaoDoCiclo } from "@/lib/ciclo";
 import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR, moedaBR } from "@/lib/formato";
 import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
-import { Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
+import { Avatar, Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
+import { linksFotoPerfil } from "@/lib/foto-perfil";
 import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, FormExcluirAluno, FormOrientacao, UploadPlano, type DadosPrivados } from "@/components/professor/formularios";
 import { PainelEvolucao } from "@/components/evolucao";
 import { sinaisDeAlerta, type Respostas } from "@/lib/acompanhamento";
@@ -41,6 +42,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
 
   const { data: aluno } = await supabase.from("alunos").select("*").eq("id", id).maybeSingle<Aluno>();
   if (!aluno) notFound();
+  const fotoUrl = aluno.foto_perfil ? (await linksFotoPerfil([aluno.foto_perfil]))[aluno.foto_perfil] ?? null : null;
 
   const [ciclos, anotacoes, contratos, anamneses, acompanhamentos, reavaliacoes, documentos, pontos, conquistas, historico, privados] = await Promise.all([
     supabase.from("ciclos").select("*").eq("aluno_id", id).order("numero", { ascending: false }),
@@ -99,7 +101,10 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{aluno.nome}</h1>
+          <div className="flex items-center gap-3">
+            <Avatar nome={aluno.nome} url={fotoUrl} className="size-12 text-base" />
+            <h1 className="text-2xl font-bold">{aluno.nome}</h1>
+          </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Selo tom={aluno.plano === "premium" ? "marca" : "neutro"}>{NOME_PLANO[aluno.plano]}</Selo>
             <Selo tom={aluno.situacao === "ativo" ? "ok" : aluno.situacao === "pausado" ? "alerta" : "neutro"}>{NOME_SITUACAO[aluno.situacao]}</Selo>

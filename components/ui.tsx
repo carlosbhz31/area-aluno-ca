@@ -49,3 +49,15 @@ export function Vazio({ icone: Icone, titulo, children }: { icone: LucideIcon; t
     </div>
   );
 }
+
+/** Foto de perfil redonda; sem foto, as iniciais do nome. */
+export function Avatar({ nome, url, className = "size-10 text-sm" }: { nome: string; url?: string | null; className?: string }) {
+  const partes = nome.trim().split(/\s+/);
+  const ini = ((partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+  return url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className={`shrink-0 rounded-full object-cover ${className}`} />
+  ) : (
+    <span className={`grid shrink-0 place-items-center rounded-full bg-marca-suave font-bold text-marca ${className}`}>{ini}</span>
+  );
+}

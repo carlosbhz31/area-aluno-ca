@@ -4,6 +4,7 @@ import type { Aluno, AppsTreino, Ciclo, FaixaLiga } from "./tipos";
 import { FAIXAS_PADRAO } from "./ligas";
 import { prazoDaSemana, type PrazoSemana } from "./acompanhamento";
 import { hojeEmBH } from "./ciclo";
+import { linksFotoPerfil } from "./foto-perfil";
 
 export const APPS_PADRAO: AppsTreino = {
   mfit: { nome: "MFit", web: "https://mfitpersonal.com.br", ios: null, android: null },
@@ -37,6 +38,8 @@ export type PainelAluno = {
   contato: Contato;
   /** Primeiro acesso ("comece aqui"): situação da anamnese e broches da jornada já ganhos. */
   jornada: { anamnese: "nenhuma" | "rascunho" | "feita"; broches: string[] };
+  /** Link temporário da foto de perfil (ou null). */
+  fotoUrl: string | null;
 };
 
 /** Tudo que o Início precisa. Funciona para o próprio aluno e para o professor (visão do aluno). */
@@ -97,7 +100,9 @@ export async function carregarPainelAluno(supabase: SupabaseClient, filtro: { al
     reavaliacao = (reav.data?.formato as PainelAluno["reavaliacao"]) ?? null;
   }
 
+  const fotos = await linksFotoPerfil([aluno.foto_perfil]);
   return {
+    fotoUrl: aluno.foto_perfil ? fotos[aluno.foto_perfil] ?? null : null,
     aluno,
     ciclo: cicloAtivo,
     pontos: (pontos.data ?? []).reduce((soma, p) => soma + (p.pontos ?? 0), 0),

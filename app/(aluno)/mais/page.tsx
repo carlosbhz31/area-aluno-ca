@@ -3,10 +3,14 @@ import { Briefcase, ChevronRight, ClipboardPen, FileText, LineChart, LogOut, Sal
 import { exigirAluno } from "@/lib/sessao";
 import { AtivarAvisos } from "@/components/aluno/ativar-avisos";
 import { HorarioSilencioso } from "@/components/aluno/horario-silencioso";
+import { FotoPerfil } from "@/components/aluno/foto-perfil";
+import { linksFotoPerfil } from "@/lib/foto-perfil";
 
 export default async function Mais() {
   const s = await exigirAluno();
-  const { data: aluno } = await s.supabase.from("alunos").select("tem_nutricao, silencio_inicio, silencio_fim").eq("user_id", s.user.id).maybeSingle();
+  const { data: aluno } = await s.supabase.from("alunos").select("id, nome, foto_perfil, tem_nutricao, silencio_inicio, silencio_fim").eq("user_id", s.user.id).maybeSingle();
+
+  const fotos = await linksFotoPerfil([aluno?.foto_perfil]);
 
   const itens = [
     { href: "/evolucao", icone: LineChart, titulo: "Evolução", texto: "Peso, medidas e fotos." },
@@ -20,6 +24,7 @@ export default async function Mais() {
   return (
     <div className="mx-auto max-w-xl space-y-4 pt-2">
       <h1 className="text-2xl font-bold">Mais</h1>
+      {aluno && <FotoPerfil alunoId={aluno.id} nome={aluno.nome} url={aluno.foto_perfil ? fotos[aluno.foto_perfil] ?? null : null} />}
 
       <ul className="cartao divide-y divide-borda">
         {itens.map(({ href, icone: Icone, titulo, texto }) => {

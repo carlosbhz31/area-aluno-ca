@@ -258,3 +258,17 @@ export async function registrarEvolucao(_: Resultado, f: FormData): Promise<Resu
   revalidatePath("/evolucao");
   return { ok: "Registrado!" };
 }
+
+/** A foto já foi enviada pelo navegador para a pasta privada do aluno; aqui grava o caminho e apaga a antiga. */
+export async function salvarFotoPerfil(caminho: string): Promise<Resultado> {
+  const s = await exigirAluno();
+  const { data: aluno } = await s.supabase.from("alunos").select("id, foto_perfil").eq("user_id", s.user.id).maybeSingle();
+  if (!aluno) return { erro: "Não achei seu cadastro." };
+  if (!caminho.startsWith(`${aluno.id}/perfil-`) || caminho.includes("..")) return { erro: "Foto inválida." };
+  const admin = clienteAdmin();
+  const { error } = await admin.from("alunos").update({ foto_perfil: caminho }).eq("id", aluno.id);
+  if (error) return { erro: "Não consegui salvar a foto. Tenta de novo." };
+  if (aluno.foto_perfil && aluno.foto_perfil !== caminho) await admin.storage.from("fotos").remove([aluno.foto_perfil]);
+  revalidatePath("/", "layout");
+  return { ok: "Foto atualizada." };
+}
