@@ -64,63 +64,32 @@ export function pararPausa(el: HTMLAudioElement) {
 }
 
 /** Como o pip toca:
- *  - "musica": som do próprio navegador (Web Audio), que o celular MISTURA com a música: o Spotify segue
- *    tocando e o pip sai por cima. Só toca com o app aberto; com a tela bloqueada, quem avisa é a notificação.
+ *  - "musica": nada toca durante a contagem; no fim, um pip curto que só abaixa a música um instante.
+ *    Só toca com o app aberto; com a tela bloqueada, quem avisa é a notificação.
  *  - "bloqueada": o áudio longo (silêncio + pip), que toca até com a tela bloqueada, mas pausa a música.
  *  - "desligado": só a notificação. */
 export type ModoPip = "musica" | "bloqueada" | "desligado";
 
-let contexto: AudioContext | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
-
-/** iPhone (Safari 16.4+): "ambient" = o som do site mistura com a música em vez de tomar a vez dela. */
-function misturarComMusica() {
-  try {
-    const n = navigator as Navigator & { audioSession?: { type: string } };
-    if (n.audioSession) n.audioSession.type = "ambient";
-  } catch {
-    // ignora
-  }
-}
-
-/** Liga o som do site só pelo tempo do pip e desliga logo depois: enquanto ele está ligado,
- *  o celular pode tratar o site como "tocando" e pausar o Spotify. */
-async function tocarAgora(ctx: AudioContext) {
-  misturarComMusica();
-  await ctx.resume();
-  const som = pip();
-  const buffer = ctx.createBuffer(1, som.length, TAXA);
-  buffer.getChannelData(0).set(som);
-  const fonte = ctx.createBufferSource();
-  fonte.buffer = buffer;
-  fonte.connect(ctx.destination);
-  fonte.onended = () => void ctx.suspend().catch(() => {});
-  fonte.start();
-}
 
 export function cancelarPipMisturado() {
   if (timer) clearTimeout(timer);
   timer = null;
 }
 
-/** Agenda o pip para daqui a `segundos` sem pausar a música. A 1ª vez precisa ser num toque da pessoa
- *  (é quando o celular libera o som); depois o som fica desligado até a hora do pip. */
+/** Modo "musica": NADA toca ao iniciar a pausa (qualquer som ligado ali faz o celular pausar o Spotify).
+ *  Na hora, com o app aberto, toca só o pip curto (~0,6 s) como um áudio comum: som curto o celular
+ *  trata como aviso, abaixa a música um instante e devolve. */
 export function agendarPipMisturado(segundos: number) {
   cancelarPipMisturado();
   if (segundos <= 0) return;
-  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctx) return;
-  if (!contexto) {
-    misturarComMusica();
-    contexto = new Ctx();
-  }
-  const ctx = contexto;
-  // libera o som dentro do toque e desliga em seguida (silêncio não precisa ocupar o áudio do celular)
-  if (ctx.state !== "running") void ctx.resume().then(() => ctx.suspend()).catch(() => {});
-  else void ctx.suspend().catch(() => {});
   timer = setTimeout(() => {
     timer = null;
-    if (document.visibilityState === "visible") void tocarAgora(ctx).catch(() => {});
+    if (document.visibilityState !== "visible") return;
+    const url = URL.createObjectURL(wavPausa(0));
+    const a = new Audio(url);
+    a.onended = a.onerror = () => URL.revokeObjectURL(url);
+    void a.play().catch(() => URL.revokeObjectURL(url));
   }, segundos * 1000);
 }
 

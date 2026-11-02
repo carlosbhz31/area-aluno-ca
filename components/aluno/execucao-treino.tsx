@@ -524,7 +524,7 @@ export function ExecucaoTreino(p: {
           </div>
           {!aviso && (
             <button onClick={alternarSom} className="mx-auto mt-1 flex max-w-xl items-center gap-1 rounded-full bg-menu/90 px-3 py-1 text-[11px] text-white/80">
-              {modoPip === "musica" ? <><Music className="size-3.5" /> Pip por cima da música, sem pausar · toca para mudar</> : modoPip === "bloqueada" ? <><Volume2 className="size-3.5" /> Pip até com a tela bloqueada · pausa a música</> : <><VolumeX className="size-3.5" /> Pip desligado · só a notificação</>}
+              {modoPip === "musica" ? <><Music className="size-3.5" /> Pip no fim, sem pausar a música · toca para mudar</> : modoPip === "bloqueada" ? <><Volume2 className="size-3.5" /> Pip até com a tela bloqueada · pausa a música</> : <><VolumeX className="size-3.5" /> Pip desligado · só a notificação</>}
             </button>
           )}
         </div>
