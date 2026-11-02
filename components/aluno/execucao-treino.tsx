@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Flag, Loader2, MessageCircle, Minus, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, Check, Flag, Loader2, MessageCircle, Minus, Music, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX, X } from "lucide-react";
 import { linkWhatsapp } from "@/lib/formato";
-import { pararPausa, tocarPausa } from "@/lib/som-pausa";
+import { iniciarSomPausa, temSessaoDeAudio, tocarPipCurto, type ModoPip } from "@/lib/som-pausa";
 import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
 import { AtivarAvisos } from "./ativar-avisos";
 import { VideoSobreposto } from "./video-sobreposto";
@@ -72,10 +72,10 @@ export function ExecucaoTreino(p: {
   const [finalizando, setFinalizando] = useState(false);
   const [esforco, setEsforco] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
-  // Pip do fim da pausa: um áudio (silêncio + pip) que segue tocando com a tela bloqueada.
-  // No iPhone ele pausa a música da pessoa, por isso dá para desligar.
+  // Pip do fim da pausa. Padrão: por cima da música, sem pausar. Quem quer o pip até com a tela
+  // bloqueada escolhe o modo "bloqueada" (aí o celular pausa a música). Ver lib/som-pausa.
   const som = useRef<HTMLAudioElement | null>(null);
-  const [comSom, setComSom] = useState(true);
+  const [modoPip, setModoPip] = useState<ModoPip>("musica");
   const tocou = useRef(true);
   const [video, setVideo] = useState<{ url: string; titulo: string } | null>(null);
   const fecharVideo = useCallback(() => setVideo(null), []);
@@ -105,7 +105,9 @@ export function ExecucaoTreino(p: {
       }
     }
     try {
-      if (localStorage.getItem("ca-pip-pausa") === "0") setComSom(false);
+      const modo = localStorage.getItem("ca-pip-pausa");
+      if (modo === "0") setModoPip("desligado");
+      else if (modo === "bloqueada") setModoPip("bloqueada");
       const salvo = JSON.parse(localStorage.getItem(chaveLocal) ?? "null") as Record<string, Valor> | null;
       if (salvo) {
         setValores((v) => {
@@ -135,25 +137,24 @@ export function ExecucaoTreino(p: {
   }, []);
 
   /** Só funciona dentro de um toque da pessoa (regra dos celulares para tocar áudio). */
-  function tocarPip(segundos: number, ligado = comSom) {
+  function tocarPip(segundos: number, modo = modoPip) {
     const el = som.current;
     if (!el) return;
-    if (!ligado || segundos <= 0) return pararPausa(el);
-    tocarPausa(el, segundos).catch(() => {
+    iniciarSomPausa(el, segundos, modo).catch(() => {
       // aparelho não deixou tocar: o push avisa
     });
     try {
-      if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: "Pausa do treino", artist: "Consultoria Premium CA" });
+      if (modo === "bloqueada" && segundos > 0 && "mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: "Pausa do treino", artist: "Consultoria Premium CA" });
     } catch {
       // ignora
     }
   }
 
   function alternarSom() {
-    const novo = !comSom;
-    setComSom(novo);
+    const novo: ModoPip = modoPip === "musica" ? "bloqueada" : modoPip === "bloqueada" ? "desligado" : "musica";
+    setModoPip(novo);
     try {
-      localStorage.setItem("ca-pip-pausa", novo ? "1" : "0");
+      localStorage.setItem("ca-pip-pausa", novo === "desligado" ? "0" : novo);
     } catch {
       // ignora
     }
@@ -164,6 +165,9 @@ export function ExecucaoTreino(p: {
   useEffect(() => {
     if (pausaFim && restante <= 0 && !tocou.current) {
       tocou.current = true;
+      const naHora = document.visibilityState === "visible" && Date.now() - pausaFim < 3000;
+      // Android no modo "música": o pip curto vem agora (com a tela aberta); som curto só abaixa a música um instante
+      if (naHora && modoPip === "musica" && !temSessaoDeAudio() && som.current) tocarPipCurto(som.current).catch(() => {});
       if (document.visibilityState === "visible") navigator.vibrate?.([300, 120, 300, 120, 300]);
       setAviso("Pausa acabou. Bora!");
       const t = setTimeout(() => {
@@ -172,7 +176,7 @@ export function ExecucaoTreino(p: {
       }, 5000);
       return () => clearTimeout(t);
     }
-  }, [pausaFim, restante]);
+  }, [pausaFim, restante, modoPip]);
 
   const todas = useMemo(() => seriesDoPlano(plano), [plano]);
   const feitasValidas = todas.filter((s) => !s.aquecimento && feitas.has(chaveSerie(s))).length;
@@ -505,7 +509,7 @@ export function ExecucaoTreino(p: {
           </div>
           {!aviso && (
             <button onClick={alternarSom} className="mx-auto mt-1 flex max-w-xl items-center gap-1 rounded-full bg-menu/90 px-3 py-1 text-[11px] text-white/80">
-              {comSom ? <><Volume2 className="size-3.5" /> Pip ligado · pausa a sua música</> : <><VolumeX className="size-3.5" /> Pip desligado · só a notificação</>}
+              {modoPip === "musica" ? <><Music className="size-3.5" /> Pip por cima da música · toca para mudar</> : modoPip === "bloqueada" ? <><Volume2 className="size-3.5" /> Pip até com a tela bloqueada · pausa a música</> : <><VolumeX className="size-3.5" /> Pip desligado · só a notificação</>}
             </button>
           )}
         </div>
