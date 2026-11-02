@@ -64,34 +64,50 @@ export function pararPausa(el: HTMLAudioElement) {
 }
 
 /** Como o pip toca:
- *  - "musica": por cima da música, sem pausar (no iPhone mistura com a música; no Android toca um pip curto
- *    no fim, que só abaixa a música por um instante). Com a tela bloqueada, quem avisa é a notificação.
- *  - "bloqueada": toca até com a tela bloqueada, mas o celular pausa a música da pessoa.
+ *  - "musica": som do próprio navegador (Web Audio), que o celular MISTURA com a música: o Spotify segue
+ *    tocando e o pip sai por cima. Só toca com o app aberto; com a tela bloqueada, quem avisa é a notificação.
+ *  - "bloqueada": o áudio longo (silêncio + pip), que toca até com a tela bloqueada, mas pausa a música.
  *  - "desligado": só a notificação. */
 export type ModoPip = "musica" | "bloqueada" | "desligado";
 
-type SessaoAudio = { type: string };
-/** Safari (iPhone) deixa escolher se o som do site mistura com a música ("ambient") ou toma a vez ("playback"). */
-export const temSessaoDeAudio = () => typeof navigator !== "undefined" && "audioSession" in navigator;
-function sessaoDeAudio(tipo: "ambient" | "playback") {
+let contexto: AudioContext | null = null;
+let agendado: AudioBufferSourceNode | null = null;
+
+export function cancelarPipMisturado() {
   try {
-    if (temSessaoDeAudio()) (navigator as Navigator & { audioSession: SessaoAudio }).audioSession.type = tipo;
+    agendado?.stop();
   } catch {
-    // ignora
+    // já tinha tocado
   }
+  agendado = null;
 }
 
-/** Começo da pausa (precisa ser chamado num toque da pessoa). No modo "musica" sem sessão de áudio
- *  (Android) não toca nada agora: o pip curto vem no fim, por `tocarPipCurto`. */
+/** Agenda o pip para daqui a `segundos`, sem tirar a vez da música. A 1ª vez precisa ser num toque da pessoa. */
+export function agendarPipMisturado(segundos: number) {
+  cancelarPipMisturado();
+  if (segundos <= 0) return;
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return;
+  contexto ??= new Ctx();
+  void contexto.resume().catch(() => {});
+  const som = pip();
+  const buffer = contexto.createBuffer(1, som.length, TAXA);
+  buffer.getChannelData(0).set(som);
+  const fonte = contexto.createBufferSource();
+  fonte.buffer = buffer;
+  fonte.connect(contexto.destination);
+  fonte.start(contexto.currentTime + segundos);
+  agendado = fonte;
+}
+
+/** Começo (ou ajuste) da pausa, chamado num toque da pessoa. */
 export function iniciarSomPausa(el: HTMLAudioElement, segundos: number, modo: ModoPip) {
-  if (modo === "desligado" || segundos <= 0) return Promise.resolve(pararPausa(el));
-  if (modo === "musica" && !temSessaoDeAudio()) return Promise.resolve(pararPausa(el));
-  sessaoDeAudio(modo === "musica" ? "ambient" : "playback");
+  if (modo !== "bloqueada" || segundos <= 0) {
+    if (el.getAttribute("src")) pararPausa(el); // nunca toca o áudio longo à toa: é ele que pausa a música
+    if (modo === "musica") agendarPipMisturado(segundos);
+    else cancelarPipMisturado();
+    return Promise.resolve();
+  }
+  cancelarPipMisturado();
   return tocarPausa(el, segundos);
-}
-
-/** Pip curto no fim da pausa (tela aberta): som de menos de 1 s só abaixa a música por um instante. */
-export function tocarPipCurto(el: HTMLAudioElement) {
-  sessaoDeAudio("ambient");
-  return tocarPausa(el, 0);
 }
