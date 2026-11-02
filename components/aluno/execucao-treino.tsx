@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Flag, Loader2, Minus, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Check, Flag, Loader2, MessageCircle, Minus, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX, X } from "lucide-react";
+import { linkWhatsapp } from "@/lib/formato";
 import { pararPausa, tocarPausa } from "@/lib/som-pausa";
 import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
 import { AtivarAvisos } from "./ativar-avisos";
 import { VideoSobreposto } from "./video-sobreposto";
 import { Barra } from "../ui";
-import { alvo, blocos, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave } from "@/lib/treino";
+import { alvo, blocos, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave, type UltimaVez } from "@/lib/treino";
 
 export type SerieSalva = { exercicio_id: string; numero: number; aquecimento: boolean; carga: number | null; reps: number | null; segundos: number | null };
-export type UltimaVez = { data: string; execucaoId: string; series: { numero: number; carga: number | null; reps: number | null; segundos: number | null }[] };
 
 type Valor = { carga: string; reps: string };
 const br = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
@@ -36,6 +36,9 @@ export function ExecucaoTreino(p: {
   ultimaVez: Record<string, UltimaVez>;
   pausaAte: string | null;
   agoraServidor: string;
+  /** WhatsApp do Carlos e primeiro nome do aluno, para o botão de mandar vídeo de correção. */
+  whatsapp: string | null;
+  primeiroNome: string;
   /** Prévia do professor ("Ver como o aluno"): tudo funciona na tela, mas nada é salvo nem avisado. */
   previa?: { voltar: string };
 }) {
@@ -43,19 +46,20 @@ export function ExecucaoTreino(p: {
   const { execucaoId, plano } = p;
   const chaveLocal = `ca-treino-${execucaoId}`;
 
-  /** Série sem carga herda a da série anterior do mesmo exercício. */
-  const repetirCarga = (v: Record<string, Valor>) => {
-    const salvas = new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento })));
+  /** Cada série já vem com a carga e as reps da última vez que aquela série foi feita
+   *  (mesmo que a meta da semana tenha mudado). Série nunca feita fica vazia. Se repetiu, é só marcar. */
+  const preenchido = useMemo(() => {
+    const v: Record<string, Valor> = {};
     for (const e of plano) {
-      let anterior = "";
+      const ant = p.ultimaVez[e.id]?.porSerie ?? {};
       for (let n = 1; n <= e.series; n++) {
-        const k = chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false });
-        if (v[k] && !v[k].carga && anterior && !salvas.has(k)) v[k] = { ...v[k], carga: anterior };
-        anterior = v[k]?.carga || anterior;
+        const a = ant[n];
+        v[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false })] = { carga: br(a?.carga), reps: br(e.metrica === "segundos" ? a?.segundos : a?.reps) };
       }
+      for (let n = 1; n <= e.aquecimento; n++) v[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: true })] = { carga: "", reps: "" };
     }
     return v;
-  };
+  }, [plano, p.ultimaVez]);
 
   // Diferença entre o relógio do servidor e o do celular (para o cronômetro bater com o aviso)
   const desvio = useRef(0);
@@ -78,21 +82,16 @@ export function ExecucaoTreino(p: {
 
   const [feitas, setFeitas] = useState(() => new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento }))));
   const [valores, setValores] = useState<Record<string, Valor>>(() => {
-    const v: Record<string, Valor> = {};
-    for (const e of plano) {
-      const ant = p.ultimaVez[e.id]?.series ?? [];
-      for (let n = 1; n <= e.series; n++) {
-        const a = ant.find((x) => x.numero === n) ?? ant[ant.length - 1];
-        v[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false })] = { carga: br(a?.carga), reps: "" };
-      }
-      for (let n = 1; n <= e.aquecimento; n++) v[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: true })] = { carga: "", reps: "" };
-    }
+    const v = { ...preenchido };
     for (const f of p.feitas) {
       const segundos = plano.find((e) => e.id === f.exercicio_id)?.metrica === "segundos";
       v[chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento })] = { carga: br(f.carga), reps: br(segundos ? f.segundos : f.reps) };
     }
-    return repetirCarga(v);
+    return v;
   });
+  const [obsAbertas, setObsAbertas] = useState<Set<string>>(new Set());
+  const [dicaVideo, setDicaVideo] = useState(false);
+  const zap = (e: ExercicioPlano) => linkWhatsapp(p.whatsapp, `Oi Carlos, aqui é ${p.primeiroNome}! Segue o vídeo do ${e.nome} pra você corrigir a execução 🎥`);
 
   // Pausa que já estava correndo quando a tela abriu (voltou do bloqueio, recarregou)
   useEffect(() => {
@@ -113,13 +112,14 @@ export function ExecucaoTreino(p: {
           const n = { ...v };
           // só o que o aluno digitou e ainda não marcou (o servidor vale para as séries feitas)
           for (const [k, x] of Object.entries(salvo)) if (n[k] && (x.carga || x.reps)) n[k] = { carga: x.carga || n[k].carga, reps: x.reps || n[k].reps };
-          return repetirCarga(n);
+          return n;
         });
       }
+      if (p.whatsapp && localStorage.getItem(`ca-dica-video-${execucaoId}`) !== "0") setDicaVideo(true);
     } catch {
       // sem armazenamento local: segue com o que veio do servidor
     }
-  }, [p.agoraServidor, p.pausaAte, chaveLocal]);
+  }, [p.agoraServidor, p.pausaAte, p.whatsapp, chaveLocal, execucaoId]);
 
   useEffect(() => {
     try {
@@ -220,14 +220,17 @@ export function ExecucaoTreino(p: {
     const doBloco = new Set(blocoDe(e.id).map((x) => x.id));
     const acabou = todas.every((x) => !doBloco.has(x.exercicioId) || novas.has(chaveSerie(x)));
     setAberto(acabou ? null : e.id);
-    // A carga usada passa para as próximas séries do exercício (o aluno só muda se trocar o peso)
+    // A carga usada passa para as próximas séries vazias; se o aluno trocou o peso desta série,
+    // passa também para as que vieram preenchidas da última vez (ainda não mexidas)
     const cargaUsada = valores[k]?.carga;
     if (cargaUsada && !s.aquecimento) {
+      const trocou = cargaUsada !== preenchido[k]?.carga;
       setValores((x) => {
         const n = { ...x };
         for (let i = s.numero + 1; i <= e.series; i++) {
           const kk = chaveSerie({ exercicioId: e.id, numero: i, aquecimento: false });
-          if (!novas.has(kk)) n[kk] = { ...(n[kk] ?? { reps: "" }), carga: cargaUsada };
+          const atual = n[kk]?.carga ?? "";
+          if (!novas.has(kk) && (!atual || (trocou && atual === preenchido[kk]?.carga))) n[kk] = { ...(n[kk] ?? { reps: "" }), carga: cargaUsada };
         }
         return n;
       });
@@ -302,6 +305,25 @@ export function ExecucaoTreino(p: {
         <AtivarAvisos compacto />
       )}
       {erro && <p className="cartao border-perigo/40 bg-perigo-suave p-3 text-sm text-perigo">{erro}</p>}
+      {dicaVideo && (
+        <div className="flex items-start gap-2 rounded-xl bg-marca-suave px-3 py-2 text-xs text-marca">
+          <Video className="mt-0.5 size-4 shrink-0" />
+          <p className="flex-1">Grava uma série de algum exercício e me manda pra eu corrigir a execução. É só tocar em <b>Enviar meu vídeo para correção</b> no exercício.</p>
+          <button
+            onClick={() => {
+              setDicaVideo(false);
+              try {
+                localStorage.setItem(`ca-dica-video-${execucaoId}`, "0");
+              } catch {
+                // ignora
+              }
+            }}
+            aria-label="Fechar dica"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
 
       {plano.map((e, i) => {
         const ult = p.ultimaVez[e.id];
@@ -366,7 +388,26 @@ export function ExecucaoTreino(p: {
                 <Video className="size-4" /> Ver vídeo do exercício
               </a>
             ))}
-            {e.observacoes && <p className="mt-2 whitespace-pre-line rounded-lg bg-fundo p-2 text-sm">{e.observacoes}</p>}
+            {zap(e) && (
+              <a href={zap(e)!} target="_blank" rel="noopener noreferrer" className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-1.5 text-sm font-semibold text-marca">
+                <MessageCircle className="size-4" /> Enviar meu vídeo para correção
+              </a>
+            )}
+            {e.observacoes && (() => {
+              // Observação longa fica recolhida em 2 linhas; toca para ver tudo
+              const longa = e.observacoes.length > 90 || e.observacoes.includes("\n");
+              const aberta = obsAbertas.has(e.id);
+              return (
+                <button
+                  type="button"
+                  onClick={() => longa && setObsAbertas((x) => { const n = new Set(x); if (n.has(e.id)) n.delete(e.id); else n.add(e.id); return n; })}
+                  className="mt-2 block w-full rounded-lg bg-fundo p-2 text-left text-sm"
+                >
+                  <span className={`block whitespace-pre-line ${longa && !aberta ? "line-clamp-2" : ""}`}>{e.observacoes}</span>
+                  {longa && <span className="mt-0.5 block text-xs font-semibold text-marca">{aberta ? "Ver menos" : "Ver mais"}</span>}
+                </button>
+              );
+            })()}
 
             <div className="mt-3 space-y-2">
               <div className="grid grid-cols-[3.5rem_1fr_1fr_3rem] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-texto-suave">

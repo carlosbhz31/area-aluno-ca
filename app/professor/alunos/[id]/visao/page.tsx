@@ -5,9 +5,9 @@ import { exigirProfessor } from "@/lib/sessao";
 import { carregarPainelAluno } from "@/lib/dados-aluno";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { dataBR } from "@/lib/formato";
-import { planoDoDia, type ExercicioFicha } from "@/lib/treino";
+import { montarUltimaVez, planoDoDia, type ExercicioFicha } from "@/lib/treino";
 import { InicioAluno } from "@/components/inicio-aluno";
-import { ExecucaoTreino, type UltimaVez } from "@/components/aluno/execucao-treino";
+import { ExecucaoTreino } from "@/components/aluno/execucao-treino";
 import { Selo, Vazio } from "@/components/ui";
 import type { Ciclo } from "@/lib/tipos";
 
@@ -40,7 +40,7 @@ export default async function VisaoDoAluno({ params, searchParams }: { params: P
       <div className="mx-auto flex h-[min(860px,calc(100dvh-9rem))] max-w-[420px] flex-col overflow-hidden rounded-[2rem] border-8 border-menu bg-fundo shadow-xl">
         <div className="flex-1 overflow-y-auto p-4">
           {aba === "inicio" && <InicioAluno painel={painel} preview />}
-          {aba === "treino" && (t ? <PreviaTreino alunoId={id} treinoId={t} voltar={`${base}?aba=treino`} /> : <ListaTreinos alunoId={id} base={base} />)}
+          {aba === "treino" && (t ? <PreviaTreino alunoId={id} treinoId={t} voltar={`${base}?aba=treino`} whatsapp={painel.contato.whatsapp} primeiroNome={painel.aluno.nome.split(" ")[0]} /> : <ListaTreinos alunoId={id} base={base} />)}
           {!["inicio", "treino"].includes(aba) && (
             <Vazio icone={Eye} titulo="Prévia desta aba ainda não disponível">
               Por enquanto a visão do aluno mostra o Início e o Treino.
@@ -116,7 +116,7 @@ async function ListaTreinos({ alunoId, base }: { alunoId: string; base: string }
 }
 
 /** A tela do treino com a prescrição desta semana e o "Última vez" do aluno; nada é salvo. */
-async function PreviaTreino({ alunoId, treinoId, voltar }: { alunoId: string; treinoId: string; voltar: string }) {
+async function PreviaTreino({ alunoId, treinoId, voltar, whatsapp, primeiroNome }: { alunoId: string; treinoId: string; voltar: string; whatsapp: string | null; primeiroNome: string }) {
   const { supabase } = await exigirProfessor();
   const [treinoR, cicloR] = await Promise.all([
     supabase.from("treinos").select("id, nome, foco, exercicios_treino(*)").eq("id", treinoId).eq("aluno_id", alunoId).maybeSingle(),
@@ -135,12 +135,7 @@ async function PreviaTreino({ alunoId, treinoId, voltar }: { alunoId: string; tr
     .in("exercicio_id", plano.map((e) => e.id))
     .order("feita_em", { ascending: false })
     .limit(400);
-  const ultimaVez: Record<string, UltimaVez> = {};
-  for (const r of anteriores ?? []) {
-    const u = (ultimaVez[r.exercicio_id] ??= { data: r.feita_em, execucaoId: r.execucao_id, series: [] });
-    if (u.execucaoId === r.execucao_id) u.series.push({ numero: r.numero, carga: r.carga, reps: r.reps, segundos: r.segundos });
-  }
-  for (const u of Object.values(ultimaVez)) u.series.sort((a, b) => a.numero - b.numero);
+  const ultimaVez = montarUltimaVez(anteriores ?? []);
 
   const agora = new Date().toISOString();
   return (
@@ -155,6 +150,8 @@ async function PreviaTreino({ alunoId, treinoId, voltar }: { alunoId: string; tr
       ultimaVez={ultimaVez}
       pausaAte={null}
       agoraServidor={agora}
+      whatsapp={whatsapp}
+      primeiroNome={primeiroNome}
       previa={{ voltar }}
     />
   );

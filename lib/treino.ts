@@ -141,3 +141,20 @@ export function numero(v: string | number | null | undefined, max = 999): number
   const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
   return Number.isFinite(n) && n >= 0 && n <= max ? Math.round(n * 100) / 100 : null;
 }
+
+export type SerieAnterior = { numero: number; carga: number | null; reps: number | null; segundos: number | null };
+export type UltimaVez = { data: string; execucaoId: string; series: SerieAnterior[]; porSerie: Record<number, SerieAnterior> };
+
+/** Séries de treinos anteriores (mais recentes primeiro) → por exercício: o último treino inteiro
+ *  e, para cada número de série, a última vez que ela foi feita (a 4ª série pode vir de um treino mais antigo). */
+export function montarUltimaVez(linhas: (SerieAnterior & { execucao_id: string; exercicio_id: string; feita_em: string })[]) {
+  const ultimaVez: Record<string, UltimaVez> = {};
+  for (const r of linhas) {
+    const s = { numero: r.numero, carga: r.carga, reps: r.reps, segundos: r.segundos };
+    const u = (ultimaVez[r.exercicio_id] ??= { data: r.feita_em, execucaoId: r.execucao_id, series: [], porSerie: {} });
+    if (u.execucaoId === r.execucao_id) u.series.push(s);
+    u.porSerie[r.numero] ??= s;
+  }
+  for (const u of Object.values(ultimaVez)) u.series.sort((a, b) => a.numero - b.numero);
+  return ultimaVez;
+}

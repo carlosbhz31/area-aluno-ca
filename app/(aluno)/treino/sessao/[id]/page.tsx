@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { exigirAluno } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
-import { ExecucaoTreino, type SerieSalva, type UltimaVez } from "@/components/aluno/execucao-treino";
-import type { ExercicioPlano } from "@/lib/treino";
+import { ExecucaoTreino, type SerieSalva } from "@/components/aluno/execucao-treino";
+import { montarUltimaVez, type ExercicioPlano } from "@/lib/treino";
 
 export default async function SessaoTreino({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +14,7 @@ export default async function SessaoTreino({ params }: { params: Promise<{ id: s
   const plano = exec.plano as ExercicioPlano[];
   const ids = plano.map((e) => e.id);
 
-  const [feitasR, anterioresR, pausaR] = await Promise.all([
+  const [feitasR, anterioresR, pausaR, alunoR, zapR] = await Promise.all([
     s.supabase.from("series_feitas").select("exercicio_id, numero, aquecimento, carga, reps, segundos").eq("execucao_id", exec.id),
     // Última vez de cada exercício (séries válidas de outros treinos)
     s.supabase
@@ -27,14 +27,11 @@ export default async function SessaoTreino({ params }: { params: Promise<{ id: s
       .order("feita_em", { ascending: false })
       .limit(400),
     clienteAdmin().from("pausas").select("termina_em").eq("user_id", s.user.id).eq("execucao_id", exec.id).is("enviada_em", null).is("cancelada_em", null).order("termina_em", { ascending: false }).limit(1).maybeSingle(),
+    s.supabase.from("alunos").select("nome").eq("id", exec.aluno_id).maybeSingle(),
+    s.supabase.from("configuracoes").select("valor").eq("chave", "whatsapp_carlos").maybeSingle(),
   ]);
 
-  const ultimaVez: Record<string, UltimaVez> = {};
-  for (const r of anterioresR.data ?? []) {
-    const u = (ultimaVez[r.exercicio_id] ??= { data: r.feita_em, execucaoId: r.execucao_id, series: [] });
-    if (u.execucaoId === r.execucao_id) u.series.push({ numero: r.numero, carga: r.carga, reps: r.reps, segundos: r.segundos });
-  }
-  for (const u of Object.values(ultimaVez)) u.series.sort((a, b) => a.numero - b.numero);
+  const ultimaVez = montarUltimaVez(anterioresR.data ?? []);
 
   return (
     <ExecucaoTreino
@@ -47,6 +44,8 @@ export default async function SessaoTreino({ params }: { params: Promise<{ id: s
       ultimaVez={ultimaVez}
       pausaAte={pausaR.data?.termina_em ?? null}
       agoraServidor={new Date().toISOString()}
+      whatsapp={(zapR.data?.valor as string | null) || null}
+      primeiroNome={alunoR.data?.nome?.split(" ")[0] ?? ""}
     />
   );
 }

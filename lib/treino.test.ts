@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alvo, blocos, chaveExercicio, chaveSerie, grupoPadrao, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
+import { alvo, blocos, chaveExercicio, chaveSerie, grupoPadrao, montarUltimaVez, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
 
 const semanas = [
   { series: 3, min: 12, max: 15, pausa: 60 },
@@ -78,4 +78,14 @@ test("nomes de exercício iguais apesar de acento, maiúscula e preposição", (
   assert.equal(chaveExercicio("Panturrilha Sentado na Máquina"), chaveExercicio("Panturrilha Sentado Maquina"));
   assert.equal(chaveExercicio("Remada Baixa (Pegada Pronada)"), "remada baixa pegada pronada");
   assert.notEqual(chaveExercicio("Stiff com Halteres"), chaveExercicio("Agachamento Guiado"));
+});
+
+test("última vez: série que faltou no último treino vem de um treino mais antigo", () => {
+  const l = (exec: string, numero: number, carga: number, reps: number, dia: string) => ({ execucao_id: exec, exercicio_id: "supino", numero, carga, reps, segundos: null, feita_em: dia });
+  // mais recentes primeiro: semana passada 3 séries, a anterior tinha 4
+  const u = montarUltimaVez([l("b", 3, 24, 10, "2026-10-29"), l("b", 2, 22, 11, "2026-10-29"), l("b", 1, 22, 12, "2026-10-29"), l("a", 4, 20, 8, "2026-10-22"), l("a", 1, 20, 10, "2026-10-22")]).supino;
+  assert.deepEqual(u.series.map((s) => s.numero), [1, 2, 3]);
+  assert.equal(u.porSerie[1].carga, 22);
+  assert.equal(u.porSerie[4].carga, 20);
+  assert.equal(u.porSerie[5], undefined);
 });
