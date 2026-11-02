@@ -204,7 +204,7 @@ export function EditorPrograma(p: {
         </label>
       </section>
 
-      <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-borda bg-cartao/95 p-3 shadow-lg backdrop-blur">
+      <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-3 rounded-2xl md:bottom-3 border border-borda bg-cartao/95 p-3 shadow-lg backdrop-blur">
         <button onClick={salvar} disabled={pendente} className="botao">
           {pendente ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} {novo ? "Salvar programa novo" : "Salvar"}
         </button>

@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, CheckCircle2, Dumbbell, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
-  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageSquareText,
+  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageCircle, MessageSquareText,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { alertasDoAluno } from "@/lib/atencao";
-import { dataBR, moedaBR } from "@/lib/formato";
+import { dataBR, linkWhatsapp, moedaBR } from "@/lib/formato";
 import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
 import { Avatar, Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
 import { linksFotoPerfil } from "@/lib/foto-perfil";
@@ -43,6 +43,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   const { data: aluno } = await supabase.from("alunos").select("*").eq("id", id).maybeSingle<Aluno>();
   if (!aluno) notFound();
   const fotoUrl = aluno.foto_perfil ? (await linksFotoPerfil([aluno.foto_perfil]))[aluno.foto_perfil] ?? null : null;
+  const zapAluno = linkWhatsapp(aluno.telefone, `Oi, ${aluno.nome.split(" ")[0]}!`);
 
   const [ciclos, anotacoes, contratos, anamneses, acompanhamentos, reavaliacoes, documentos, pontos, conquistas, historico, privados] = await Promise.all([
     supabase.from("ciclos").select("*").eq("aluno_id", id).order("numero", { ascending: false }),
@@ -111,11 +112,12 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             {aluno.app_treino && <Selo>{NOME_APP[aluno.app_treino]}</Selo>}
             {alertas.map((a) => <Selo key={a.texto} tom={a.tom}>{a.texto}</Selo>)}
           </div>
-          <p className="mt-2 text-sm text-texto-suave">
+          <p className="mt-2 break-words text-sm text-texto-suave">
             {aluno.email} · {moedaBR(aluno.valor_contratado)} · contrato {dataBR(aluno.inicio)} a {dataBR(aluno.fim)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {zapAluno && <a href={zapAluno} target="_blank" rel="noopener noreferrer" className="botao-secundario"><MessageCircle className="size-4" /> WhatsApp</a>}
           <Link href={`/professor/alunos/${id}/visao`} className="botao-secundario"><Eye className="size-4" /> Ver como o aluno</Link>
           <BotaoSituacao
             acao={mudarSituacao.bind(null, id, aluno.situacao === "inativo" ? "ativo" : "inativo")}
@@ -150,7 +152,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             {cicloAtivo ? (
               <>
                 <div className="mb-4 rounded-xl bg-fundo p-4">
-                  <div className="flex items-end justify-between">
+                  <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                     <p className="text-xl font-bold">
                       {s.tipo === "em_andamento" ? `Semana ${s.semana} de ${s.total}` : s.tipo === "encerrado" ? "Encerrado" : "Ainda não começou"}
                     </p>

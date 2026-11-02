@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Plus, Search, UserCheck, UserMinus, PauseCircle, Users } from "lucide-react";
+import { AlertTriangle, ChevronRight, Plus, Search, UserCheck, UserMinus, PauseCircle, Users } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { alertasDoAluno } from "@/lib/atencao";
@@ -68,7 +68,7 @@ export default async function Alunos({ searchParams }: { searchParams: Promise<F
       </div>
 
       <form className="cartao flex flex-wrap items-end gap-3 p-4">
-        <label className="min-w-56 flex-1">
+        <label className="w-full sm:w-auto sm:min-w-56 sm:flex-1">
           <span className="rotulo">Buscar</span>
           <div className="relative mt-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-texto-suave" />
@@ -95,54 +95,87 @@ export default async function Alunos({ searchParams }: { searchParams: Promise<F
           </Vazio>
         </div>
       ) : (
-        <div className="cartao overflow-x-auto">
-          <table className="w-full min-w-[820px] text-sm">
-            <thead>
-              <tr className="border-b border-borda text-left">
-                {["Aluno", "Plano", "Situação", "App", "Ciclo", "Contrato até", "Atenção"].map((t) => (
-                  <th key={t} className="rotulo px-4 py-3 font-semibold">{t}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map(({ aluno, ciclo, alertas }) => {
-                const s = situacaoDoCiclo(ciclo);
-                return (
-                  <tr key={aluno.id} className="border-b border-borda last:border-0 hover:bg-fundo">
-                    <td className="px-4 py-3">
-                      <Link href={`/professor/alunos/${aluno.id}`} className="flex items-center gap-3">
-                        <Avatar nome={aluno.nome} url={aluno.foto_perfil ? fotos[aluno.foto_perfil] : null} className="size-9 text-xs" />
-                        <span>
-                          <span className="block font-semibold hover:text-marca">{aluno.nome}</span>
-                          <span className="block text-xs text-texto-suave">{aluno.email}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3"><Selo tom={aluno.plano === "premium" ? "marca" : "neutro"}>{NOME_PLANO[aluno.plano]}</Selo></td>
-                    <td className="px-4 py-3"><Selo tom={aluno.situacao === "ativo" ? "ok" : aluno.situacao === "pausado" ? "alerta" : "neutro"}>{NOME_SITUACAO[aluno.situacao]}</Selo></td>
-                    <td className="px-4 py-3">{aluno.app_treino ? NOME_APP[aluno.app_treino] : <span className="text-texto-suave">—</span>}</td>
-                    <td className="w-40 px-4 py-3">
-                      {s.tipo === "em_andamento" ? (
-                        <>
-                          <span className="text-xs font-semibold">Semana {s.semana}/{s.total}</span>
-                          <Barra valor={s.progresso} className="mt-1 !h-1.5" cor={s.semana >= s.total - 1 ? "bg-alerta" : "bg-marca"} />
-                        </>
-                      ) : (
-                        <span className="text-xs text-texto-suave">{s.tipo === "encerrado" ? "Encerrado" : s.tipo === "nao_iniciado" ? "Não começou" : "—"}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-texto-suave">{dataBR(aluno.fim)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
+        <>
+          {/* Celular: um cartão por aluno */}
+          <ul className="space-y-2 md:hidden">
+            {lista.map(({ aluno, ciclo, alertas }) => {
+              const s = situacaoDoCiclo(ciclo);
+              return (
+                <li key={aluno.id}>
+                  <Link href={`/professor/alunos/${aluno.id}`} className="cartao flex items-start gap-3 p-3">
+                    <Avatar nome={aluno.nome} url={aluno.foto_perfil ? fotos[aluno.foto_perfil] : null} className="size-11 text-sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">{aluno.nome}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        <Selo tom={aluno.plano === "premium" ? "marca" : "neutro"}>{NOME_PLANO[aluno.plano]}</Selo>
+                        {aluno.situacao !== "ativo" && <Selo tom={aluno.situacao === "pausado" ? "alerta" : "neutro"}>{NOME_SITUACAO[aluno.situacao]}</Selo>}
                         {alertas.map((a) => <Selo key={a.texto} tom={a.tom}>{a.texto}</Selo>)}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </span>
+                      {s.tipo === "em_andamento" ? (
+                        <span className="mt-2 flex items-center gap-2">
+                          <span className="shrink-0 text-xs font-semibold">Semana {s.semana}/{s.total}</span>
+                          <Barra valor={s.progresso} className="!h-1.5" cor={s.semana >= s.total - 1 ? "bg-alerta" : "bg-marca"} />
+                        </span>
+                      ) : (
+                        <span className="mt-1 block text-xs text-texto-suave">{s.tipo === "encerrado" ? "Ciclo encerrado" : s.tipo === "nao_iniciado" ? "Ciclo não começou" : "Sem ciclo"}</span>
+                      )}
+                    </span>
+                    <ChevronRight className="mt-3 size-5 shrink-0 text-texto-suave" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="cartao hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead>
+                <tr className="border-b border-borda text-left">
+                  {["Aluno", "Plano", "Situação", "App", "Ciclo", "Contrato até", "Atenção"].map((t) => (
+                    <th key={t} className="rotulo px-4 py-3 font-semibold">{t}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lista.map(({ aluno, ciclo, alertas }) => {
+                  const s = situacaoDoCiclo(ciclo);
+                  return (
+                    <tr key={aluno.id} className="border-b border-borda last:border-0 hover:bg-fundo">
+                      <td className="px-4 py-3">
+                        <Link href={`/professor/alunos/${aluno.id}`} className="flex items-center gap-3">
+                          <Avatar nome={aluno.nome} url={aluno.foto_perfil ? fotos[aluno.foto_perfil] : null} className="size-9 text-xs" />
+                          <span>
+                            <span className="block font-semibold hover:text-marca">{aluno.nome}</span>
+                            <span className="block text-xs text-texto-suave">{aluno.email}</span>
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3"><Selo tom={aluno.plano === "premium" ? "marca" : "neutro"}>{NOME_PLANO[aluno.plano]}</Selo></td>
+                      <td className="px-4 py-3"><Selo tom={aluno.situacao === "ativo" ? "ok" : aluno.situacao === "pausado" ? "alerta" : "neutro"}>{NOME_SITUACAO[aluno.situacao]}</Selo></td>
+                      <td className="px-4 py-3">{aluno.app_treino ? NOME_APP[aluno.app_treino] : <span className="text-texto-suave">—</span>}</td>
+                      <td className="w-40 px-4 py-3">
+                        {s.tipo === "em_andamento" ? (
+                          <>
+                            <span className="text-xs font-semibold">Semana {s.semana}/{s.total}</span>
+                            <Barra valor={s.progresso} className="mt-1 !h-1.5" cor={s.semana >= s.total - 1 ? "bg-alerta" : "bg-marca"} />
+                          </>
+                        ) : (
+                          <span className="text-xs text-texto-suave">{s.tipo === "encerrado" ? "Encerrado" : s.tipo === "nao_iniciado" ? "Não começou" : "—"}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-texto-suave">{dataBR(aluno.fim)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {alertas.map((a) => <Selo key={a.texto} tom={a.tom}>{a.texto}</Selo>)}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -150,9 +183,9 @@ export default async function Alunos({ searchParams }: { searchParams: Promise<F
 
 function Seletor({ nome, rotulo, valor, opcoes }: { nome: string; rotulo: string; valor?: string; opcoes: [string, string][] }) {
   return (
-    <label>
+    <label className="w-[calc(50%-0.375rem)] sm:w-auto">
       <span className="rotulo">{rotulo}</span>
-      <select name={nome} defaultValue={valor ?? ""} className="campo mt-1 !w-40">
+      <select name={nome} defaultValue={valor ?? ""} className="campo mt-1 sm:!w-40">
         <option value="">Todos</option>
         {opcoes.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
       </select>

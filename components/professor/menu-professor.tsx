@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, CalendarClock, Dumbbell, PlayCircle, Settings, Users } from "lucide-react";
 
-const ITENS_BASE = [
+const ITENS_BASE: { href: string | null; rotulo: string; curto?: string; icone: typeof Users }[] = [
   { href: "/professor/hoje", rotulo: "Hoje", icone: CalendarClock },
   { href: "/professor/alunos", rotulo: "Alunos", icone: Users },
   { href: "/professor/exercicios", rotulo: "Exercícios", icone: Dumbbell },
-  { href: "/professor/configuracoes", rotulo: "Configurações", icone: Settings },
+  { href: "/professor/configuracoes", rotulo: "Configurações", curto: "Ajustes", icone: Settings },
   { href: null, rotulo: "Supervisão", icone: BarChart3 },
 ];
 
@@ -18,14 +18,23 @@ export function MenuProfessor({ celular = false, meuTreino = false }: { celular?
   const ITENS = meuTreino ? [...ITENS_BASE, { href: "/treino", rotulo: "Meu treino", icone: PlayCircle }] : ITENS_BASE;
   const ativo = (href: string) => caminho === href || caminho.startsWith(href + "/");
 
+  // Celular: barra embaixo, ao alcance do polegar (igual à do app do aluno)
   if (celular) {
+    const itens = ITENS.filter((i) => i.href);
     return (
-      <nav className="flex gap-1 overflow-x-auto">
-        {ITENS.filter((i) => i.href).map(({ href, rotulo }) => (
-          <Link key={rotulo} href={href!} className={`rounded-lg px-3 py-1.5 text-sm ${ativo(href!) ? "bg-marca text-white" : "text-menu-texto/70"}`}>
-            {rotulo}
-          </Link>
-        ))}
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-menu pb-[env(safe-area-inset-bottom)] md:hidden">
+        <ul className="grid" style={{ gridTemplateColumns: `repeat(${itens.length}, minmax(0, 1fr))` }}>
+          {itens.map(({ href, rotulo, curto, icone: Icone }) => (
+            <li key={rotulo}>
+              <Link href={href!} className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium ${ativo(href!) ? "text-white" : "text-menu-texto/55"}`}>
+                <span className={`grid h-7 w-12 place-items-center rounded-full ${ativo(href!) ? "bg-marca" : ""}`}>
+                  <Icone className="size-5" />
+                </span>
+                {curto ?? rotulo}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </nav>
     );
   }

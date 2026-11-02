@@ -27,20 +27,18 @@ export default async function LayoutProfessor({ children }: { children: React.Re
         </div>
       </aside>
 
-      {/* Barra simples para quando abrir no celular */}
+      {/* Celular: barra fina em cima e o menu embaixo, ao alcance do polegar */}
       {/* pt com safe-area: no app instalado do iPhone a barra ficava embaixo do relógio e não dava para tocar */}
-      <header className="sticky top-0 z-10 space-y-2 bg-menu px-4 pb-3 pt-[calc(env(safe-area-inset-top)+1rem)] text-white md:hidden">
-        <div className="flex items-center gap-3">
-          <Image src="/brand/ca-icone.png" alt="" width={28} height={28} />
-          <Link href="/professor/hoje" className="font-bold">Painel do Professor</Link>
-          <form action="/auth/sair" method="post" className="ml-auto">
-            <button className="flex items-center gap-1 text-sm text-menu-texto hover:text-white"><LogOut className="size-4" /> Sair</button>
-          </form>
-        </div>
-        <MenuProfessor celular meuTreino={meuTreino} />
+      <header className="flex items-center gap-3 bg-menu px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white md:hidden">
+        <Image src="/brand/ca-icone.png" alt="" width={26} height={26} />
+        <Link href="/professor/hoje" className="font-bold">Painel do Professor</Link>
+        <form action="/auth/sair" method="post" className="ml-auto">
+          <button className="flex items-center gap-1 text-sm text-menu-texto hover:text-white"><LogOut className="size-4" /> Sair</button>
+        </form>
       </header>
+      <MenuProfessor celular meuTreino={meuTreino} />
 
-      <main className="px-4 py-6 md:ml-64 md:px-10 md:py-8">{children}</main>
+      <main className="px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 md:ml-64 md:px-10 md:py-8">{children}</main>
     </div>
   );
 }
