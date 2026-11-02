@@ -158,3 +158,60 @@ export function montarUltimaVez(linhas: (SerieAnterior & { execucao_id: string; 
   for (const u of Object.values(ultimaVez)) u.series.sort((a, b) => a.numero - b.numero);
   return ultimaVez;
 }
+
+export type ItemRelatorio = {
+  id: string;
+  nome: string;
+  /** Comparando a melhor série de hoje com a da última vez. */
+  evolucao: "carga" | "reps" | "volume" | "igual" | "menos" | "novo";
+  texto: string;
+  recorde: boolean;
+  /** Quanto falta para o topo da faixa da semana (ou que já bateu). */
+  meta: string | null;
+};
+
+type LinhaSerie = SerieAnterior & { execucao_id: string; exercicio_id: string; feita_em: string };
+const kg = (n: number) => `${String(Math.round(n * 100) / 100).replace(".", ",")} kg`;
+
+/** Relatório do fim do treino: o que evoluiu em relação à última vez de cada exercício.
+ *  `hoje` são as séries válidas deste treino; `antes`, as de treinos anteriores (mais recentes primeiro). */
+export function relatorioTreino(plano: ExercicioPlano[], hoje: (SerieAnterior & { exercicio_id: string })[], antes: LinhaSerie[]) {
+  const ultima = montarUltimaVez(antes);
+  const itens: ItemRelatorio[] = [];
+  let volume = 0;
+  for (const e of plano) {
+    const h = hoje.filter((s) => s.exercicio_id === e.id);
+    if (!h.length) continue;
+    const seg = e.metrica === "segundos";
+    const qtd = (s: SerieAnterior) => (seg ? s.segundos : s.reps) ?? 0;
+    const un = seg ? "s" : "reps";
+    const melhor = (l: SerieAnterior[]) => [...l].sort((a, b) => (b.carga ?? 0) - (a.carga ?? 0) || qtd(b) - qtd(a))[0];
+    const vol = (l: SerieAnterior[]) => l.reduce((t, s) => t + (s.carga ? s.carga * qtd(s) : qtd(s)), 0);
+    if (!seg) volume += h.reduce((t, s) => t + (s.carga ?? 0) * qtd(s), 0);
+
+    const hb = melhor(h);
+    const ant = ultima[e.id]?.series ?? [];
+    const ab = melhor(ant);
+    let evolucao: ItemRelatorio["evolucao"];
+    let texto: string;
+    if (!ab) [evolucao, texto] = ["novo", "Primeira vez registrada. Agora é bater esse número."];
+    else if ((hb.carga ?? 0) > (ab.carga ?? 0)) [evolucao, texto] = ["carga", `+${kg((hb.carga ?? 0) - (ab.carga ?? 0))} (${kg(ab.carga ?? 0)} → ${kg(hb.carga ?? 0)})`];
+    else if ((hb.carga ?? 0) === (ab.carga ?? 0) && qtd(hb) > qtd(ab)) [evolucao, texto] = ["reps", `+${qtd(hb) - qtd(ab)} ${un} com ${hb.carga ? kg(hb.carga) : "o mesmo peso"}`];
+    else if (vol(h) > vol(ant)) [evolucao, texto] = ["volume", seg ? "Mais tempo no total que a última vez" : "Mais volume no total, somando todas as séries"];
+    else if (vol(h) === vol(ant) || (hb.carga === ab.carga && qtd(hb) === qtd(ab))) [evolucao, texto] = ["igual", "Manteve o da última vez"];
+    else [evolucao, texto] = ["menos", "Abaixo da última vez. Acontece: descansa bem e vem pra cima"];
+
+    const recordeAntes = Math.max(0, ...antes.filter((s) => s.exercicio_id === e.id).map((s) => s.carga ?? 0));
+    const recorde = Boolean(ab) && (hb.carga ?? 0) > recordeAntes && recordeAntes > 0;
+
+    let meta: string | null = null;
+    if (e.max) {
+      const menor = Math.min(...h.map(qtd));
+      if (h.length >= e.series && menor >= e.max) meta = `Topo da faixa (${e.max} ${un}) em todas as séries: na próxima, sobe a carga`;
+      else if (menor < e.max) meta = `Faltam ${e.max - menor} ${un} na série mais fraca para o topo da faixa (${e.max})`;
+    }
+    itens.push({ id: e.id, nome: e.nome, evolucao, texto, recorde, meta });
+  }
+  const evoluiu = itens.filter((i) => ["carga", "reps", "volume"].includes(i.evolucao)).length;
+  return { itens, evoluiu, volume: Math.round(volume) };
+}

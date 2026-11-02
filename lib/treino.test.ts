@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alvo, blocos, chaveExercicio, chaveSerie, grupoPadrao, montarUltimaVez, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
+import { alvo, blocos, chaveExercicio, chaveSerie, grupoPadrao, montarUltimaVez, relatorioTreino, videoYoutube, numero, pausaDepois, planoDoDia, prescricaoDaSemana, proximaSerie, seriesDoPlano, tempo, type ExercicioFicha } from "./treino.ts";
 
 const semanas = [
   { series: 3, min: 12, max: 15, pausa: 60 },
@@ -88,4 +88,23 @@ test("última vez: série que faltou no último treino vem de um treino mais ant
   assert.equal(u.porSerie[1].carga, 22);
   assert.equal(u.porSerie[4].carga, 20);
   assert.equal(u.porSerie[5], undefined);
+});
+
+test("relatório do fim do treino: carga, reps, recorde e meta", () => {
+  const ex = (id: string, max = 12) => ({ id, nome: id, grupo: null, equipamento: null, video_url: null, observacoes: null, metrica: "reps" as const, aquecimento: 0, series: 3, min: 10, max, pausa: 60 });
+  const plano = [ex("supino"), ex("remada"), ex("rosca"), ex("agacho")];
+  const s = (exercicio_id: string, numero: number, carga: number, reps: number) => ({ exercicio_id, numero, carga, reps, segundos: null });
+  const a = (exercicio_id: string, numero: number, carga: number, reps: number, exec = "x") => ({ ...s(exercicio_id, numero, carga, reps), execucao_id: exec, feita_em: "2026-10-29" });
+  const hoje = [s("supino", 1, 24, 10), s("supino", 2, 24, 9), s("remada", 1, 30, 12), s("remada", 2, 30, 12), s("remada", 3, 30, 12), s("rosca", 1, 10, 8)];
+  const antes = [a("supino", 1, 22, 10), a("remada", 1, 30, 10), a("rosca", 1, 10, 10), a("supino", 1, 26, 6, "velho")];
+  const r = relatorioTreino(plano, hoje, antes);
+  const por = Object.fromEntries(r.itens.map((i) => [i.id, i]));
+  assert.equal(por.supino.evolucao, "carga");
+  assert.equal(por.supino.recorde, false); // já tinha feito 26 kg num treino antigo
+  assert.equal(por.remada.evolucao, "reps");
+  assert.match(por.remada.meta!, /sobe a carga/);
+  assert.equal(por.rosca.evolucao, "menos");
+  assert.match(por.rosca.meta!, /Faltam 4/);
+  assert.equal(por.agacho, undefined); // não fez hoje
+  assert.equal(r.evoluiu, 2);
 });

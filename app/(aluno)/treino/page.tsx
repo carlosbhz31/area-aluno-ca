@@ -8,7 +8,44 @@ import { BotaoTreino } from "@/components/botao-treino";
 import { AtivarAvisos } from "@/components/aluno/ativar-avisos";
 import { Selo, Vazio } from "@/components/ui";
 import type { AppsTreino, Ciclo } from "@/lib/tipos";
+import { RelatorioTreino } from "@/components/aluno/relatorio-treino";
+import { relatorioTreino, type ExercicioPlano } from "@/lib/treino";
 import { iniciarTreino } from "./acoes";
+
+type Execucao = { id: string; treino_id: string | null; nome_treino: string; iniciada_em: string; concluida_em: string | null };
+
+/** Dados do relatório do treino que acabou de ser concluído: séries de hoje x treinos anteriores. */
+async function montarRelatorio(supabase: Awaited<ReturnType<typeof exigirAluno>>["supabase"], alunoId: string, exec: Execucao, feitas: Execucao[]) {
+  const { data: e } = await supabase.from("execucoes").select("plano").eq("id", exec.id).maybeSingle();
+  const plano = (e?.plano ?? []) as ExercicioPlano[];
+  if (!plano.length) return null;
+  const [hojeR, antesR] = await Promise.all([
+    supabase.from("series_feitas").select("exercicio_id, numero, carga, reps, segundos").eq("execucao_id", exec.id).eq("aquecimento", false),
+    supabase
+      .from("series_feitas")
+      .select("execucao_id, exercicio_id, numero, carga, reps, segundos, feita_em")
+      .eq("aluno_id", alunoId)
+      .eq("aquecimento", false)
+      .neq("execucao_id", exec.id)
+      .lt("feita_em", exec.iniciada_em)
+      .in("exercicio_id", plano.map((x) => x.id))
+      .order("feita_em", { ascending: false })
+      .limit(600),
+  ]);
+  const hoje = hojeR.data ?? [];
+  if (!hoje.length) return null;
+  const antes = antesR.data ?? [];
+  const r = relatorioTreino(plano, hoje, antes);
+
+  // Volume da última vez deste mesmo treino
+  const anterior = exec.treino_id ? feitas.find((x) => x.treino_id === exec.treino_id && x.id !== exec.id && x.iniciada_em < exec.iniciada_em) : null;
+  const linhasAnt = anterior ? antes.filter((x) => x.execucao_id === anterior.id) : [];
+  const seg = new Set(plano.filter((x) => x.metrica === "segundos").map((x) => x.id));
+  const volumeAntes = linhasAnt.length ? Math.round(linhasAnt.filter((x) => !seg.has(x.exercicio_id)).reduce((t, x) => t + (x.carga ?? 0) * (x.reps ?? 0), 0)) : null;
+
+  const min = Math.round((Date.parse(exec.concluida_em!) - Date.parse(exec.iniciada_em)) / 60000);
+  return { nome: exec.nome_treino, minutos: min > 0 && min < 300 ? min : null, series: hoje.length, volume: r.volume, volumeAntes, itens: r.itens, evoluiu: r.evoluiu };
+}
 
 export default async function Treino({ searchParams }: { searchParams: Promise<{ concluido?: string; erro?: string }> }) {
   const { concluido, erro } = await searchParams;
@@ -36,6 +73,7 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
   const ultimaVez = new Map<string, string>();
   for (const e of feitas) if (e.treino_id && !ultimaVez.has(e.treino_id)) ultimaVez.set(e.treino_id, e.concluida_em!);
   const recemConcluido = concluido ? feitas.find((e) => e.id === concluido) : null;
+  const relatorio = recemConcluido ? await montarRelatorio(s.supabase, aluno.id, recemConcluido, feitas) : null;
 
   if (!programa) {
     const apps = { ...APPS_PADRAO, ...((cfgR.data?.valor as AppsTreino) ?? {}) };
@@ -63,12 +101,14 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
         </p>
       </div>
 
-      {recemConcluido && (
+      {recemConcluido && (relatorio ? (
+        <RelatorioTreino {...relatorio} />
+      ) : (
         <section className="cartao flex items-center gap-3 border-ok/40 bg-ok-suave p-4 text-sm">
           <CheckCircle2 className="size-6 shrink-0 text-ok" />
           <p><strong>Treino concluído!</strong> {recemConcluido.nome_treino} registrado. Bom trabalho.</p>
         </section>
-      )}
+      ))}
       {erro && <p className="cartao p-4 text-sm text-perigo">Não consegui começar o treino. Tenta de novo.</p>}
 
       {aberta && (
