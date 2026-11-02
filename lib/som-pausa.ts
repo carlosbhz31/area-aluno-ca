@@ -51,6 +51,8 @@ export function wavPausa(segundos: number): Blob {
 
 /** Toca silêncio até o fim da pausa e então o pip. Precisa ser chamado num toque da pessoa. */
 export function tocarPausa(el: HTMLAudioElement, segundos: number) {
+  const sessao = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (sessao) sessao.type = "auto"; // o modo "musica" pode ter deixado "transient"
   if (el.src.startsWith("blob:")) URL.revokeObjectURL(el.src);
   el.src = URL.createObjectURL(wavPausa(segundos));
   return el.play();
@@ -86,6 +88,10 @@ export function agendarPipMisturado(segundos: number) {
   timer = setTimeout(() => {
     timer = null;
     if (document.visibilityState !== "visible") return;
+    // iPhone (iOS 17+): marca o som como aviso curto ("transient"). Sem isso o Safari toma o áudio
+    // como se fosse música: o Spotify para e não volta. Como aviso, o iPhone abaixa e devolve a música.
+    const sessao = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (sessao) sessao.type = "transient";
     const url = URL.createObjectURL(wavPausa(0));
     const a = new Audio(url);
     a.onended = a.onerror = () => URL.revokeObjectURL(url);
