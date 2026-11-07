@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  AlertTriangle, Cake, CalendarCheck, ChevronRight, Clock, Dumbbell, Hourglass, Inbox, Megaphone, RefreshCw, ScrollText, Wallet,
+  AlertTriangle, Cake, CalendarCheck, ChevronRight, Clock, Dumbbell, Hourglass, Inbox, Megaphone, PlayCircle, RefreshCw, ScrollText, Wallet,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { hojeEmBH, situacaoDoCiclo, emRetaFinal } from "@/lib/ciclo";
@@ -189,6 +189,7 @@ export default async function Hoje() {
       selos: [{ texto: d === 0 ? "🎂 Hoje" : d === 1 ? "Amanhã" : `em ${d} dias`, tom: d === 0 ? ("ok" as const) : ("neutro" as const) }],
     }));
 
+  const presenciais = alunos.map((x) => x.aluno).filter((a) => a.situacao === "ativo" && a.modalidade !== "consultoria");
   const total = semResposta.length + atrasados.length + reavaliacao.length;
   const naoComecaram = alunos.filter((x) => x.aluno.situacao === "ativo" && !usaApp.has(x.aluno.id)).length;
 
@@ -201,6 +202,20 @@ export default async function Hoje() {
         </p>
       </div>
 
+
+      {presenciais.length > 0 && (
+        <Cartao>
+          <TituloCartao icone={PlayCircle}>Aula presencial</TituloCartao>
+          <p className="mb-3 text-sm text-texto-suave">Toque no aluno para registrar a aula no seu celular.</p>
+          <ul className="flex flex-wrap gap-2">
+            {presenciais.map((a) => (
+              <li key={a.id}>
+                <Link href={`/professor/alunos/${a.id}/personal`} className="botao-secundario !py-1.5 text-sm"><PlayCircle className="size-4" /> {a.nome.split(" ").slice(0, 2).join(" ")}</Link>
+              </li>
+            ))}
+          </ul>
+        </Cartao>
+      )}
 
       {comPrograma.length > 0 && (
         <Cartao>

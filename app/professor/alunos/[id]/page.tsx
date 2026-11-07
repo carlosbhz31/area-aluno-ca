@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft, CalendarDays, CheckCircle2, Dumbbell, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
+  ArrowLeft, CalendarDays, CheckCircle2, Dumbbell, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, PlayCircle, Salad,
   ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageCircle, MessageSquareText, Wallet,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
@@ -124,6 +124,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
         </div>
         <div className="flex flex-wrap gap-2">
           {zapAluno && <a href={zapAluno} target="_blank" rel="noopener noreferrer" className="botao-secundario"><MessageCircle className="size-4" /> WhatsApp</a>}
+          {aluno.modalidade !== "consultoria" && <Link href={`/professor/alunos/${id}/personal`} className="botao"><PlayCircle className="size-4" /> Treinar com o aluno</Link>}
           <Link href={`/professor/alunos/${id}/visao`} className="botao-secundario"><Eye className="size-4" /> Ver como o aluno</Link>
           <BotaoSituacao
             acao={mudarSituacao.bind(null, id, aluno.situacao === "inativo" ? "ativo" : "inativo")}
