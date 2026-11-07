@@ -236,3 +236,13 @@ export function esforcoDe(n: number | null | undefined) {
   if (!n) return null;
   return n <= 3 ? ESFORCOS[0] : n <= 6 ? ESFORCOS[1] : n <= 8 ? ESFORCOS[2] : ESFORCOS[3];
 }
+
+/** Chave da anotação de um exercício: o exercício da lista (vale em todos os ciclos) ou o nome. */
+export const chaveAnotacao = (e: { exercicio_id?: string | null; nome: string }) => e.exercicio_id || `nome:${chaveExercicio(e.nome)}`;
+export type Anotacao = { texto: string; por: "aluno" | "professor"; em: string };
+
+/** Anotações de um aluno por exercício: chaveAnotacao → anotação. */
+export async function lerAnotacoes(supabase: import("@supabase/supabase-js").SupabaseClient, alunoId: string): Promise<Record<string, Anotacao>> {
+  const { data } = await supabase.from("anotacoes_exercicio").select("chave, texto, atualizado_por, atualizado_em").eq("aluno_id", alunoId).neq("texto", "");
+  return Object.fromEntries((data ?? []).map((a) => [a.chave, { texto: a.texto, por: a.atualizado_por, em: a.atualizado_em }]));
+}

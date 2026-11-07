@@ -5,7 +5,7 @@ import { exigirProfessor } from "@/lib/sessao";
 import { carregarPainelAluno } from "@/lib/dados-aluno";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { dataBR } from "@/lib/formato";
-import { montarUltimaVez, planoDoDia, type ExercicioFicha } from "@/lib/treino";
+import { lerAnotacoes, montarUltimaVez, planoDoDia, type ExercicioFicha } from "@/lib/treino";
 import { InicioAluno } from "@/components/inicio-aluno";
 import { ExecucaoTreino } from "@/components/aluno/execucao-treino";
 import { Selo, Vazio } from "@/components/ui";
@@ -124,18 +124,19 @@ async function PreviaTreino({ alunoId, treinoId, voltar, whatsapp, primeiroNome 
   ]);
   if (!treinoR.data) notFound();
   const sit = situacaoDoCiclo(cicloR.data);
-  const semana = sit.tipo === "em_andamento" ? sit.semana : null;
+  const semana = sit.tipo === "em_andamento" ? sit.semana : sit.tipo === "nao_iniciado" ? 1 : null;
   const plano = planoDoDia(treinoR.data.exercicios_treino as ExercicioFicha[], semana);
 
   const { data: anteriores } = await supabase
     .from("series_feitas")
-    .select("execucao_id, exercicio_id, numero, carga, reps, segundos, feita_em")
+    .select("execucao_id, exercicio_id, numero, carga, reps, segundos, unidade, feita_em")
     .eq("aluno_id", alunoId)
     .eq("aquecimento", false)
     .in("exercicio_id", plano.map((e) => e.id))
     .order("feita_em", { ascending: false })
     .limit(400);
   const ultimaVez = montarUltimaVez(anteriores ?? []);
+  const anotacoes = await lerAnotacoes(supabase, alunoId);
 
   const agora = new Date().toISOString();
   return (
@@ -148,6 +149,7 @@ async function PreviaTreino({ alunoId, treinoId, voltar, whatsapp, primeiroNome 
       plano={plano}
       feitas={[]}
       ultimaVez={ultimaVez}
+      anotacoes={anotacoes}
       pausaAte={null}
       agoraServidor={agora}
       whatsapp={whatsapp}

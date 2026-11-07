@@ -40,7 +40,8 @@ export async function iniciarTreino(treinoId: string) {
 
   const { data: ciclo } = await s.supabase.from("ciclos").select("*").eq("aluno_id", s.alunoId).eq("ativo", true).maybeSingle<Ciclo>();
   const sit = situacaoDoCiclo(ciclo);
-  const semana = sit.tipo === "em_andamento" ? sit.semana : null;
+  // Ciclo ainda não começou: o aluno pode adiantar e treina com a referência da semana 1
+  const semana = sit.tipo === "em_andamento" ? sit.semana : sit.tipo === "nao_iniciado" ? 1 : null;
 
   const { data: nova, error } = await s.supabase
     .from("execucoes")
@@ -163,4 +164,14 @@ export async function descartarTreino(execucaoId: string) {
   await s.supabase.from("execucoes").delete().eq("id", execucaoId).is("concluida_em", null);
   revalidatePath("/treino");
   redirect("/treino");
+}
+
+/** Anotação / lembrete do aluno num exercício (ajuste do banco, posicionamento...). Vale em todos os ciclos. */
+export async function salvarAnotacao(chave: string, nome: string, texto: string): Promise<{ erro?: string }> {
+  const s = await meuAluno();
+  const t = texto.trim().slice(0, 1000);
+  const { error } = await s.supabase
+    .from("anotacoes_exercicio")
+    .upsert({ aluno_id: s.alunoId, chave: chave.slice(0, 200), nome: nome.slice(0, 200), texto: t, atualizado_por: "aluno", atualizado_em: new Date().toISOString() }, { onConflict: "aluno_id,chave" });
+  return error ? { erro: "Não consegui salvar a anotação. Confere a internet." } : {};
 }

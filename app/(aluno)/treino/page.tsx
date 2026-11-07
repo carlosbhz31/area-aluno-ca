@@ -100,6 +100,11 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
           {sit.tipo === "em_andamento" && ` · semana ${sit.semana} de ${sit.total}`}
         </p>
       </div>
+      {sit.tipo === "nao_iniciado" && cicloR.data && (
+        <p className="cartao border-marca/40 bg-marca-suave p-3 text-sm text-marca">
+          Seu ciclo começa em <b>{dataBR(cicloR.data.inicio)}</b>. Se quiser começar antes, pode: o treino vai com a referência da semana 1.
+        </p>
+      )}
 
       {recemConcluido && (relatorio ? (
         <RelatorioTreino {...relatorio} />
@@ -159,7 +164,10 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
 
       {feitas.length > 0 && (
         <section className="cartao p-5">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-texto-suave"><History className="size-4" /> Últimos treinos</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-texto-suave"><History className="size-4" /> Últimos treinos</h2>
+            <Link href="/evolucao?aba=treinos" className="text-sm font-semibold text-marca">Histórico e gráficos</Link>
+          </div>
           <ul className="divide-y divide-borda text-sm">
             {feitas.slice(0, 8).map((e) => {
               const min = Math.round((Date.parse(e.concluida_em!) - Date.parse(e.iniciada_em)) / 60000);

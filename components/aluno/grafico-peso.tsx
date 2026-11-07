@@ -5,7 +5,7 @@ import { dataBR, numeroBR } from "@/lib/formato";
 
 // Linha única (peso ao longo do tempo): sem legenda, linha 2px, pontos de 8px, grade discreta,
 // dica ao tocar/passar no ponto. A lista de registros abaixo do gráfico é a versão em tabela.
-export function GraficoPeso({ pontos }: { pontos: { data: string; peso: number }[] }) {
+export function GraficoPeso({ pontos, unidade = "kg" }: { pontos: { data: string; peso: number }[]; unidade?: string }) {
   const [ativo, setAtivo] = useState<number | null>(null);
   if (pontos.length < 2) return null;
 
@@ -23,7 +23,7 @@ export function GraficoPeso({ pontos }: { pontos: { data: string; peso: number }
 
   return (
     <figure className="relative">
-      <svg viewBox={`0 0 ${L} ${A}`} className="w-full" role="img" aria-label={`Peso de ${pesos[0]} kg a ${pesos[pesos.length - 1]} kg`} onMouseLeave={() => setAtivo(null)}>
+      <svg viewBox={`0 0 ${L} ${A}`} className="w-full" role="img" aria-label={`De ${pesos[0]} ${unidade} a ${pesos[pesos.length - 1]} ${unidade}`} onMouseLeave={() => setAtivo(null)}>
         {linhas.map((v) => (
           <g key={v}>
             <line x1={m.l} x2={L - m.r} y1={y(v)} y2={y(v)} stroke="var(--borda)" strokeWidth={1} />
@@ -47,7 +47,7 @@ export function GraficoPeso({ pontos }: { pontos: { data: string; peso: number }
           className="pointer-events-none absolute -translate-x-1/2 rounded-lg border border-borda bg-cartao px-2 py-1 text-xs shadow"
           style={{ left: `${(x(tempos[ativo!]) / L) * 100}%`, top: 0 }}
         >
-          <strong>{numeroBR(sel.peso)} kg</strong> <span className="text-texto-suave">{dataBR(sel.data)}</span>
+          <strong>{numeroBR(sel.peso)} {unidade}</strong> <span className="text-texto-suave">{dataBR(sel.data)}</span>
         </figcaption>
       )}
     </figure>

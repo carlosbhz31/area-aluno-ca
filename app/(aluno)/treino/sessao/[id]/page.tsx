@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { exigirAluno } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { ExecucaoTreino, type SerieSalva } from "@/components/aluno/execucao-treino";
-import { montarUltimaVez, type ExercicioPlano } from "@/lib/treino";
+import { lerAnotacoes, montarUltimaVez, type ExercicioPlano } from "@/lib/treino";
 
 export default async function SessaoTreino({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,6 +32,7 @@ export default async function SessaoTreino({ params }: { params: Promise<{ id: s
   ]);
 
   const ultimaVez = montarUltimaVez(anterioresR.data ?? []);
+  const anotacoes = await lerAnotacoes(s.supabase, exec.aluno_id);
 
   return (
     <ExecucaoTreino
@@ -42,6 +43,7 @@ export default async function SessaoTreino({ params }: { params: Promise<{ id: s
       plano={plano}
       feitas={(feitasR.data ?? []) as SerieSalva[]}
       ultimaVez={ultimaVez}
+      anotacoes={anotacoes}
       pausaAte={pausaR.data?.termina_em ?? null}
       agoraServidor={new Date().toISOString()}
       whatsapp={(zapR.data?.valor as string | null) || null}

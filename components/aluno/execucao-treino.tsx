@@ -5,11 +5,12 @@ import Link from "next/link";
 import { ArrowLeft, Check, ChevronDown, Flag, Loader2, MessageCircle, Minus, Music, Play, Plus, SkipForward, Square, Timer, Trash2, Video, Volume2, VolumeX, X } from "lucide-react";
 import { linkWhatsapp } from "@/lib/formato";
 import { agendarPipMisturado, cancelarPipMisturado, iniciarSomPausa, type ModoPip } from "@/lib/som-pausa";
-import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
+import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie, salvarAnotacao } from "@/app/(aluno)/treino/acoes";
+import { AnotacaoExercicio } from "../anotacao-exercicio";
 import { AtivarAvisos } from "./ativar-avisos";
 import { VideoSobreposto } from "./video-sobreposto";
 import { Barra } from "../ui";
-import { alvo, blocos, comUnidade, ESFORCOS, numero, UNIDADES, unidadeValida, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave, type UltimaVez, type Unidade } from "@/lib/treino";
+import { alvo, blocos, chaveAnotacao, comUnidade, ESFORCOS, numero, UNIDADES, unidadeValida, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave, type UltimaVez, type Unidade, type Anotacao } from "@/lib/treino";
 
 export type SerieSalva = { exercicio_id: string; numero: number; aquecimento: boolean; carga: number | null; reps: number | null; segundos: number | null; unidade?: string | null };
 
@@ -37,6 +38,8 @@ export function ExecucaoTreino(p: {
   plano: ExercicioPlano[];
   feitas: SerieSalva[];
   ultimaVez: Record<string, UltimaVez>;
+  /** Anotações do aluno por exercício (chaveAnotacao). */
+  anotacoes?: Record<string, Anotacao>;
   pausaAte: string | null;
   agoraServidor: string;
   /** WhatsApp do Carlos e primeiro nome do aluno, para o botão de mandar vídeo de correção. */
@@ -469,6 +472,14 @@ export function ExecucaoTreino(p: {
                 </button>
               );
             })()}
+            <AnotacaoExercicio
+              chave={chaveAnotacao(e)}
+              nome={e.nome}
+              inicial={p.anotacoes?.[chaveAnotacao(e)] ?? null}
+              quem="aluno"
+              salvar={salvarAnotacao}
+              somenteLer={!!previa}
+            />
 
             {e.aquecimento > 0 && (
               <p className="mt-2 text-xs text-texto-suave">

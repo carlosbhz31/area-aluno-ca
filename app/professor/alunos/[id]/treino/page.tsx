@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Dumbbell, History, MessageSquareText } from "lucide-react";
+import { ArrowLeft, Dumbbell, History, MessageSquareText, NotebookPen } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { dataBR } from "@/lib/formato";
 import { Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
 import { EditorPrograma } from "@/components/professor/editor-programa";
 import type { ExercicioEditor, ExercicioLista, ProgramaEditor } from "../../../treino-acoes";
-import { esforcoDe, type ExercicioPlano } from "@/lib/treino";
+import { chaveAnotacao, esforcoDe, lerAnotacoes, type ExercicioPlano } from "@/lib/treino";
+import { AnotacaoExercicio } from "@/components/anotacao-exercicio";
+import { salvarAnotacaoProfessor } from "../../../treino-acoes";
 import type { Ciclo } from "@/lib/tipos";
 
 export const metadata = { title: "Treino do aluno · Painel do Professor" };
@@ -59,6 +61,9 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
     .map((o) => ({ id: o.aluno_id, nome: (o.alunos as unknown as { nome: string }).nome }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
   const lista = execucoes.data ?? [];
+  const anotacoes = await lerAnotacoes(supabase, id);
+  // Exercícios do programa ativo, sem repetir (o mesmo exercício pode estar em dois treinos)
+  const exerciciosPrograma = [...new Map((inicial?.treinos ?? []).flatMap((t) => t.exercicios).map((e) => [chaveAnotacao(e), e])).values()];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -79,6 +84,27 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
         nomeSugerido={nomeSugerido}
         outrosAlunos={outrosAlunos}
       />
+
+      {exerciciosPrograma.length > 0 && (
+        <Cartao>
+          <TituloCartao icone={NotebookPen}>Anotações por exercício</TituloCartao>
+          <p className="mb-3 text-sm text-texto-suave">Lembretes de ajuste e posição. O aluno vê na hora de treinar e também pode escrever. Valem nos próximos ciclos.</p>
+          <ul className="divide-y divide-borda">
+            {exerciciosPrograma.map((e) => (
+              <li key={chaveAnotacao(e)} className="py-2">
+                <p className="text-sm font-medium">{e.nome}</p>
+                <AnotacaoExercicio
+                  chave={chaveAnotacao(e)}
+                  nome={e.nome}
+                  inicial={anotacoes[chaveAnotacao(e)] ?? null}
+                  quem="professor"
+                  salvar={salvarAnotacaoProfessor.bind(null, id)}
+                />
+              </li>
+            ))}
+          </ul>
+        </Cartao>
+      )}
 
       <Cartao>
         <TituloCartao icone={History}>O que o aluno fez</TituloCartao>

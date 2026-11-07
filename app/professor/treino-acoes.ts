@@ -214,3 +214,17 @@ export async function programaParaCopiar(deAlunoId: string): Promise<ProgramaEdi
       })),
   };
 }
+
+/** Anotação / lembrete num exercício do aluno (o aluno vê na hora de treinar e pode completar). */
+export async function salvarAnotacaoProfessor(alunoId: string, chave: string, nome: string, texto: string): Promise<{ erro?: string }> {
+  const { supabase } = await exigirProfessor();
+  const { error } = await supabase
+    .from("anotacoes_exercicio")
+    .upsert(
+      { aluno_id: alunoId, chave: chave.slice(0, 200), nome: nome.slice(0, 200), texto: texto.trim().slice(0, 1000), atualizado_por: "professor", atualizado_em: new Date().toISOString() },
+      { onConflict: "aluno_id,chave" },
+    );
+  if (error) return { erro: "Não consegui salvar." };
+  revalidatePath(`/professor/alunos/${alunoId}/treino`);
+  return {};
+}

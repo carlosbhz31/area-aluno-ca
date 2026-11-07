@@ -6,33 +6,28 @@ import { Camera, Loader2 } from "lucide-react";
 import { salvarFotoPerfil } from "@/app/(aluno)/acoes";
 import { clienteNavegador } from "@/lib/supabase/navegador";
 import { Avatar } from "../ui";
+import { RecortarFoto } from "./recortar-foto";
 
-/** Recorta o centro da foto em quadrado (512 px, JPEG): fica leve e redonda certinha. */
-async function quadrado(arquivo: File): Promise<Blob> {
-  const img = await createImageBitmap(arquivo);
-  const lado = Math.min(img.width, img.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = Math.min(512, lado);
-  canvas.getContext("2d")!.drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, canvas.width, canvas.height);
-  return await new Promise((ok, erro) => canvas.toBlob((b) => (b ? ok(b) : erro(new Error("foto"))), "image/jpeg", 0.85));
-}
-
-/** Foto de perfil do aluno: toca para escolher (galeria ou câmera) e já salva. */
+/** Foto de perfil do aluno: toca para escolher (galeria ou câmera), ajusta o recorte e salva. */
 export function FotoPerfil({ alunoId, nome, url }: { alunoId: string; nome: string; url: string | null }) {
   const entrada = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [previa, setPrevia] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [recortar, setRecortar] = useState<File | null>(null);
 
-  async function escolher(ev: React.ChangeEvent<HTMLInputElement>) {
+  function escolher(ev: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = ev.target.files?.[0];
     ev.target.value = "";
-    if (!arquivo) return;
+    if (arquivo) setRecortar(arquivo);
+  }
+
+  async function enviar(blob: Blob) {
+    setRecortar(null);
     setErro(null);
     setEnviando(true);
     try {
-      const blob = await quadrado(arquivo);
       setPrevia(URL.createObjectURL(blob));
       const caminho = `${alunoId}/perfil-${Date.now()}.jpg`;
       const { error } = await clienteNavegador().storage.from("fotos").upload(caminho, blob, { contentType: "image/jpeg", upsert: false });
@@ -63,6 +58,7 @@ export function FotoPerfil({ alunoId, nome, url }: { alunoId: string; nome: stri
         {erro && <p className="mt-1 text-xs text-perigo">{erro}</p>}
       </div>
       <input ref={entrada} type="file" accept="image/*" className="hidden" onChange={escolher} />
+      {recortar && <RecortarFoto arquivo={recortar} pronto={enviar} cancelar={() => setRecortar(null)} />}
     </section>
   );
 }
