@@ -13,7 +13,7 @@ export default async function LayoutAluno({ children }: { children: React.ReactN
   return (
     <div className="min-h-dvh">
       <MenuAluno />
-      <main className="pb-seguro px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:ml-60 lg:px-10 lg:pb-10 lg:pt-8">{children}</main>
+      <main className="pb-seguro pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1rem,env(safe-area-inset-top))] lg:ml-60 lg:px-10 lg:pb-10 lg:pt-8">{children}</main>
     </div>
   );
 }

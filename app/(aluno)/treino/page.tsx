@@ -20,10 +20,10 @@ async function montarRelatorio(supabase: Awaited<ReturnType<typeof exigirAluno>>
   const plano = (e?.plano ?? []) as ExercicioPlano[];
   if (!plano.length) return null;
   const [hojeR, antesR] = await Promise.all([
-    supabase.from("series_feitas").select("exercicio_id, numero, carga, reps, segundos").eq("execucao_id", exec.id).eq("aquecimento", false),
+    supabase.from("series_feitas").select("exercicio_id, numero, carga, reps, segundos, unidade").eq("execucao_id", exec.id).eq("aquecimento", false),
     supabase
       .from("series_feitas")
-      .select("execucao_id, exercicio_id, numero, carga, reps, segundos, feita_em")
+      .select("execucao_id, exercicio_id, numero, carga, reps, segundos, unidade, feita_em")
       .eq("aluno_id", alunoId)
       .eq("aquecimento", false)
       .neq("execucao_id", exec.id)
@@ -127,7 +127,8 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
       {programa.observacoes && <p className="cartao whitespace-pre-line p-4 text-sm">{programa.observacoes}</p>}
 
       <ul className="space-y-3">
-        {treinos.map((t) => {
+        {/* Treino do dia (o próximo da rotação) sempre em primeiro */}
+        {[...treinos].sort((a, b) => Number(b.id === proximoId) - Number(a.id === proximoId)).map((t) => {
           const total = (t.exercicios_treino as unknown as { count: number }[])[0]?.count ?? 0;
           return (
             <li key={t.id}>
@@ -138,7 +139,7 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-semibold">
-                      {t.nome} {t.id === proximoId && <Selo tom="marca">Próximo</Selo>}
+                      {t.nome} {t.id === proximoId && <Selo tom="marca">Treino de hoje</Selo>}
                     </p>
                     {t.foco && <p className="text-sm text-texto-suave">{t.foco}</p>}
                     <p className="mt-1 text-xs text-texto-suave">

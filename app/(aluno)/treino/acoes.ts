@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { exigirAluno } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { situacaoDoCiclo } from "@/lib/ciclo";
-import { numero, planoDoDia, type ExercicioFicha } from "@/lib/treino";
+import { numero, planoDoDia, unidadeValida, type ExercicioFicha } from "@/lib/treino";
 import type { Ciclo } from "@/lib/tipos";
 
 async function meuAluno() {
@@ -66,6 +66,7 @@ export type SerieEnviada = {
   carga: string | number | null;
   reps: string | number | null;
   segundos: string | number | null;
+  unidade?: string;
   pausa: number; // segundos de pausa depois desta série (0 = sem pausa)
   proximo: string; // texto do aviso: o que vem agora
 };
@@ -86,6 +87,7 @@ export async function marcarSerie(x: SerieEnviada): Promise<{ erro?: string; ter
       carga: numero(x.carga, 1000),
       reps: numero(x.reps, 500) == null ? null : Math.round(numero(x.reps, 500)!),
       segundos: numero(x.segundos, 3600) == null ? null : Math.round(numero(x.segundos, 3600)!),
+      unidade: unidadeValida(x.unidade),
       feita_em: new Date().toISOString(),
     },
     { onConflict: "execucao_id,exercicio_id,aquecimento,numero" },

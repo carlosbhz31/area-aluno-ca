@@ -142,7 +142,14 @@ export function numero(v: string | number | null | undefined, max = 999): number
   return Number.isFinite(n) && n >= 0 && n <= max ? Math.round(n * 100) / 100 : null;
 }
 
-export type SerieAnterior = { numero: number; carga: number | null; reps: number | null; segundos: number | null };
+/** Unidade da carga: depende do aparelho (anilha em kg, máquina importada em lb, máquina em "barras" / placas). */
+export type Unidade = "kg" | "lb" | "barras";
+export const UNIDADES: Unidade[] = ["kg", "lb", "barras"];
+export const unidadeValida = (u: unknown): Unidade => (UNIDADES.includes(u as Unidade) ? (u as Unidade) : "kg");
+/** "92,5 kg", "40 lb", "6 barras". */
+export const comUnidade = (n: number, u?: string | null) => `${String(Math.round(n * 100) / 100).replace(".", ",")} ${unidadeValida(u)}`;
+
+export type SerieAnterior = { numero: number; carga: number | null; reps: number | null; segundos: number | null; unidade?: string | null };
 export type UltimaVez = { data: string; execucaoId: string; series: SerieAnterior[]; porSerie: Record<number, SerieAnterior> };
 
 /** Séries de treinos anteriores (mais recentes primeiro) → por exercício: o último treino inteiro
@@ -150,7 +157,7 @@ export type UltimaVez = { data: string; execucaoId: string; series: SerieAnterio
 export function montarUltimaVez(linhas: (SerieAnterior & { execucao_id: string; exercicio_id: string; feita_em: string })[]) {
   const ultimaVez: Record<string, UltimaVez> = {};
   for (const r of linhas) {
-    const s = { numero: r.numero, carga: r.carga, reps: r.reps, segundos: r.segundos };
+    const s = { numero: r.numero, carga: r.carga, reps: r.reps, segundos: r.segundos, unidade: r.unidade ?? "kg" };
     const u = (ultimaVez[r.exercicio_id] ??= { data: r.feita_em, execucaoId: r.execucao_id, series: [], porSerie: {} });
     if (u.execucaoId === r.execucao_id) u.series.push(s);
     u.porSerie[r.numero] ??= s;
@@ -171,7 +178,6 @@ export type ItemRelatorio = {
 };
 
 type LinhaSerie = SerieAnterior & { execucao_id: string; exercicio_id: string; feita_em: string };
-const kg = (n: number) => `${String(Math.round(n * 100) / 100).replace(".", ",")} kg`;
 
 /** Relatório do fim do treino: o que evoluiu em relação à última vez de cada exercício.
  *  `hoje` são as séries válidas deste treino; `antes`, as de treinos anteriores (mais recentes primeiro). */
@@ -194,6 +200,7 @@ export function relatorioTreino(plano: ExercicioPlano[], hoje: (SerieAnterior & 
     const ab = melhor(ant);
     let evolucao: ItemRelatorio["evolucao"];
     let texto: string;
+    const kg = (n: number) => comUnidade(n, hb.unidade);
     if (!ab) [evolucao, texto] = ["novo", "Primeira vez registrada. Agora é bater esse número."];
     else if ((hb.carga ?? 0) > (ab.carga ?? 0)) [evolucao, texto] = ["carga", `+${kg((hb.carga ?? 0) - (ab.carga ?? 0))} (${kg(ab.carga ?? 0)} → ${kg(hb.carga ?? 0)})`];
     else if ((hb.carga ?? 0) === (ab.carga ?? 0) && qtd(hb) > qtd(ab)) [evolucao, texto] = ["reps", `+${qtd(hb) - qtd(ab)} ${un} com ${hb.carga ? kg(hb.carga) : "o mesmo peso"}`];
@@ -214,4 +221,18 @@ export function relatorioTreino(plano: ExercicioPlano[], hoje: (SerieAnterior & 
   }
   const evoluiu = itens.filter((i) => ["carga", "reps", "volume"].includes(i.evolucao)).length;
   return { itens, evoluiu, volume: Math.round(volume) };
+}
+
+/** Esforço do fim do treino em 4 carinhas. Guarda um número de 1 a 10 (o banco e os treinos antigos usam essa escala). */
+export const ESFORCOS = [
+  { valor: 3, emoji: "😌", rotulo: "Leve" },
+  { valor: 5, emoji: "🙂", rotulo: "Moderado" },
+  { valor: 8, emoji: "😮‍💨", rotulo: "Difícil" },
+  { valor: 10, emoji: "🥵", rotulo: "No limite" },
+] as const;
+
+/** Número de 1 a 10 (inclusive dos treinos antigos) → a carinha mais próxima. */
+export function esforcoDe(n: number | null | undefined) {
+  if (!n) return null;
+  return n <= 3 ? ESFORCOS[0] : n <= 6 ? ESFORCOS[1] : n <= 8 ? ESFORCOS[2] : ESFORCOS[3];
 }

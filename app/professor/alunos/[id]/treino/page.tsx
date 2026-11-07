@@ -7,7 +7,7 @@ import { dataBR } from "@/lib/formato";
 import { Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
 import { EditorPrograma } from "@/components/professor/editor-programa";
 import type { ExercicioEditor, ExercicioLista, ProgramaEditor } from "../../../treino-acoes";
-import type { ExercicioPlano } from "@/lib/treino";
+import { esforcoDe, type ExercicioPlano } from "@/lib/treino";
 import type { Ciclo } from "@/lib/tipos";
 
 export const metadata = { title: "Treino do aluno · Painel do Professor" };
@@ -28,7 +28,7 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
     supabase.from("programas").select("aluno_id, alunos!inner(nome)").eq("ativo", true).neq("aluno_id", id),
     supabase
       .from("execucoes")
-      .select("id, nome_treino, semana, plano, iniciada_em, concluida_em, esforco, comentario, series_feitas(exercicio_id, numero, aquecimento, carga, reps, segundos)")
+      .select("id, nome_treino, semana, plano, iniciada_em, concluida_em, esforco, comentario, series_feitas(exercicio_id, numero, aquecimento, carga, reps, segundos, unidade)")
       .eq("aluno_id", id)
       .order("iniciada_em", { ascending: false })
       .limit(20),
@@ -100,7 +100,7 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
                       {ex.semana && <span className="text-texto-suave">sem. {ex.semana}</span>}
                       <span className="text-texto-suave">{validas.length}/{total} séries{minutos != null && minutos < 600 ? ` · ${minutos} min` : ""}</span>
                       {!ex.concluida_em && <Selo tom="alerta">em andamento</Selo>}
-                      {ex.esforco && <Selo tom={ex.esforco >= 9 ? "alerta" : "neutro"}>esforço {ex.esforco}</Selo>}
+                      {ex.esforco && <Selo tom={ex.esforco >= 9 ? "alerta" : "neutro"}>{esforcoDe(ex.esforco)?.emoji} {esforcoDe(ex.esforco)?.rotulo}</Selo>}
                       {ex.comentario && <MessageSquareText className="size-4 text-marca" aria-label="Deixou recado" />}
                     </summary>
                     <div className="space-y-2 border-t border-borda p-3 text-sm">
@@ -112,7 +112,7 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
                             <span className="font-medium">{e.nome}:</span>
                             <span className="text-texto-suave">
                               {feitas.length
-                                ? feitas.map((f) => `${f.carga != null ? `${br(f.carga)} kg × ` : ""}${e.metrica === "segundos" ? `${f.segundos ?? "-"} s` : f.reps ?? "-"}`).join(" · ")
+                                ? feitas.map((f) => `${f.carga != null ? `${br(f.carga)} ${f.unidade ?? "kg"} × ` : ""}${e.metrica === "segundos" ? `${f.segundos ?? "-"} s` : f.reps ?? "-"}`).join(" · ")
                                 : "não fez"}
                             </span>
                           </div>

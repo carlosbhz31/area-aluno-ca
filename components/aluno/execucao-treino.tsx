@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Flag, Loader2, MessageCircle, Minus, Music, Plus, SkipForward, Timer, Trash2, Video, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Flag, Loader2, MessageCircle, Minus, Music, Play, Plus, SkipForward, Square, Timer, Trash2, Video, Volume2, VolumeX, X } from "lucide-react";
 import { linkWhatsapp } from "@/lib/formato";
 import { agendarPipMisturado, cancelarPipMisturado, iniciarSomPausa, type ModoPip } from "@/lib/som-pausa";
 import { ajustarPausa, concluirTreino, descartarTreino, desmarcarSerie, marcarSerie } from "@/app/(aluno)/treino/acoes";
 import { AtivarAvisos } from "./ativar-avisos";
 import { VideoSobreposto } from "./video-sobreposto";
 import { Barra } from "../ui";
-import { alvo, blocos, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave, type UltimaVez } from "@/lib/treino";
+import { alvo, blocos, comUnidade, ESFORCOS, numero, UNIDADES, unidadeValida, videoYoutube, chaveSerie, pausaDepois, proximaSerie, seriesDoPlano, tempo, textoProxima, type ExercicioPlano, type SerieChave, type UltimaVez, type Unidade } from "@/lib/treino";
 
-export type SerieSalva = { exercicio_id: string; numero: number; aquecimento: boolean; carga: number | null; reps: number | null; segundos: number | null };
+export type SerieSalva = { exercicio_id: string; numero: number; aquecimento: boolean; carga: number | null; reps: number | null; segundos: number | null; unidade?: string | null };
 
 type Valor = { carga: string; reps: string };
 const br = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
@@ -21,8 +21,11 @@ function melhorDaUltima(ult: UltimaVez, e: ExercicioPlano) {
   const s = [...ult.series].sort((a, b) => (b.carga ?? 0) - (a.carga ?? 0))[0];
   if (!s) return "";
   const qtd = e.metrica === "segundos" ? `${s.segundos ?? "-"} s` : `${s.reps ?? "-"} reps`;
-  return s.carga != null ? `${br(s.carga)} kg · ${qtd}` : qtd;
+  return s.carga != null ? `${comUnidade(s.carga, s.unidade)} · ${qtd}` : qtd;
 }
+
+/** Cronômetro da série de exercício em segundos (prancha etc.): é diferente da pausa. */
+type Crono = { s: SerieChave; e: ExercicioPlano; fim: number; total: number };
 
 /** Execução do treino: marca séries, guarda carga e reps e cuida da pausa.
  *  O cronômetro da tela é só visual; quem garante o aviso com a tela bloqueada é o servidor (push). */
@@ -46,20 +49,13 @@ export function ExecucaoTreino(p: {
   const { execucaoId, plano } = p;
   const chaveLocal = `ca-treino-${execucaoId}`;
 
-  /** Cada série já vem com a carga e as reps da última vez que aquela série foi feita
-   *  (mesmo que a meta da semana tenha mudado). Série nunca feita fica vazia. Se repetiu, é só marcar. */
-  const preenchido = useMemo(() => {
+  /** Os campos começam vazios: nada é preenchido pelo aluno. A carga da última vez aparece só como
+   *  dica em cinza (ver dicaCarga); se repetiu, é só marcar que a dica vale. */
+  const vazio = useMemo(() => {
     const v: Record<string, Valor> = {};
-    for (const e of plano) {
-      const ant = p.ultimaVez[e.id]?.porSerie ?? {};
-      for (let n = 1; n <= e.series; n++) {
-        const a = ant[n];
-        v[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false })] = { carga: br(a?.carga), reps: br(e.metrica === "segundos" ? a?.segundos : a?.reps) };
-      }
-      for (let n = 1; n <= e.aquecimento; n++) v[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: true })] = { carga: "", reps: "" };
-    }
+    for (const s of seriesDoPlano(plano)) v[chaveSerie(s)] = { carga: "", reps: "" };
     return v;
-  }, [plano, p.ultimaVez]);
+  }, [plano]);
 
   // Diferença entre o relógio do servidor e o do celular (para o cronômetro bater com o aviso)
   const desvio = useRef(0);
@@ -82,13 +78,34 @@ export function ExecucaoTreino(p: {
 
   const [feitas, setFeitas] = useState(() => new Set(p.feitas.map((f) => chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento }))));
   const [valores, setValores] = useState<Record<string, Valor>>(() => {
-    const v = { ...preenchido };
+    const v = { ...vazio };
     for (const f of p.feitas) {
       const segundos = plano.find((e) => e.id === f.exercicio_id)?.metrica === "segundos";
       v[chaveSerie({ exercicioId: f.exercicio_id, numero: f.numero, aquecimento: f.aquecimento })] = { carga: br(f.carga), reps: br(segundos ? f.segundos : f.reps) };
     }
     return v;
   });
+  // Unidade da carga em cada exercício (kg, lb ou barras): a de hoje, senão a da última vez
+  const [unidades, setUnidades] = useState<Record<string, Unidade>>(() => {
+    const u: Record<string, Unidade> = {};
+    for (const e of plano) u[e.id] = unidadeValida(p.feitas.find((f) => f.exercicio_id === e.id && !f.aquecimento)?.unidade ?? p.ultimaVez[e.id]?.series[0]?.unidade);
+    return u;
+  });
+  const [crono, setCrono] = useState<Crono | null>(null);
+  // Exercício que acabou de ser concluído: mostra o ✅ um instante antes de ir para o próximo
+  const [recemConcluido, setRecemConcluido] = useState<string | null>(null);
+
+  /** Dica da carga (cinza): a da última vez nessa mesma série; se não tem, a da série anterior de hoje. */
+  function dicaCarga(e: ExercicioPlano, s: SerieChave) {
+    if (s.aquecimento) return "";
+    const ant = p.ultimaVez[e.id]?.porSerie[s.numero]?.carga;
+    if (ant != null) return br(ant);
+    for (let n = s.numero - 1; n >= 1; n--) {
+      const c = valores[chaveSerie({ exercicioId: e.id, numero: n, aquecimento: false })]?.carga;
+      if (c) return c;
+    }
+    return "";
+  }
   const [obsAbertas, setObsAbertas] = useState<Set<string>>(new Set());
   const [dicaVideo, setDicaVideo] = useState(false);
   const zap = (e: ExercicioPlano) => linkWhatsapp(p.whatsapp, `Oi Carlos, aqui é ${p.primeiroNome}! Segue o vídeo do ${e.nome} pra você corrigir a execução 🎥`);
@@ -220,7 +237,7 @@ export function ExecucaoTreino(p: {
     setPausaTotal(segundos);
   }
 
-  async function alternar(s: SerieChave, e: ExercicioPlano) {
+  async function alternar(s: SerieChave, e: ExercicioPlano, extra?: Partial<Valor>) {
     const k = chaveSerie(s);
     if (salvando.has(k)) return;
     setErro(null);
@@ -235,24 +252,22 @@ export function ExecucaoTreino(p: {
 
     const novas = new Set(feitas).add(k);
     setFeitas(novas);
-    // Terminou o exercício (ou o superset inteiro): abre o próximo da ordem; senão continua neste
+    // Campo vazio = usou a dica (carga da última vez) e a meta de reps/segundos
+    const v = { ...(valores[k] ?? { carga: "", reps: "" }), ...extra };
+    if (!v.carga) v.carga = dicaCarga(e, s);
+    if (!v.reps && (e.max || e.min)) v.reps = String(e.max || e.min);
+    setValores((x) => ({ ...x, [k]: v }));
+    // Terminou o exercício (ou o superset inteiro): mostra o ✅ um instante e só depois desce
+    // devagar para o próximo (para a pessoa entender o que aconteceu)
     const doBloco = new Set(blocoDe(e.id).map((x) => x.id));
     const acabou = todas.every((x) => !doBloco.has(x.exercicioId) || novas.has(chaveSerie(x)));
-    setAberto(acabou ? null : e.id);
-    // A carga usada passa para as próximas séries vazias; se o aluno trocou o peso desta série,
-    // passa também para as que vieram preenchidas da última vez (ainda não mexidas)
-    const cargaUsada = valores[k]?.carga;
-    if (cargaUsada && !s.aquecimento) {
-      const trocou = cargaUsada !== preenchido[k]?.carga;
-      setValores((x) => {
-        const n = { ...x };
-        for (let i = s.numero + 1; i <= e.series; i++) {
-          const kk = chaveSerie({ exercicioId: e.id, numero: i, aquecimento: false });
-          const atual = n[kk]?.carga ?? "";
-          if (!novas.has(kk) && (!atual || (trocou && atual === preenchido[kk]?.carga))) n[kk] = { ...(n[kk] ?? { reps: "" }), carga: cargaUsada };
-        }
-        return n;
-      });
+    setAberto(e.id);
+    if (acabou) {
+      setRecemConcluido(e.id);
+      setTimeout(() => {
+        setRecemConcluido((r) => (r === e.id ? null : r));
+        setAberto((a) => (a === e.id ? null : a));
+      }, 1600);
     }
     const prox = proximaSerie(plano, novas, s);
     const pausa = pausaDepois(plano, s, prox);
@@ -262,7 +277,6 @@ export function ExecucaoTreino(p: {
       return fim();
     }
     tocarPip(pausa);
-    const v = valores[k] ?? { carga: "", reps: "" };
     try {
       const r = await marcarSerie({
         execucaoId,
@@ -270,6 +284,7 @@ export function ExecucaoTreino(p: {
         numero: s.numero,
         aquecimento: s.aquecimento,
         carga: v.carga,
+        unidade: unidades[e.id],
         reps: e.metrica === "reps" ? v.reps || e.max || e.min : null,
         segundos: e.metrica === "segundos" ? v.reps || e.max || e.min : null,
         pausa,
@@ -301,6 +316,33 @@ export function ExecucaoTreino(p: {
     const r = await ajustarPausa(seg).catch(() => null);
     if (r?.terminaEm && seg !== "pular") iniciarPausaLocal(r.terminaEm, r.agora, Math.max(3, pausaTotal + seg));
   }
+
+  /** Começa a contar a série em segundos (no toque, para o pip poder tocar no fim). */
+  function iniciarCrono(s: SerieChave, e: ExercicioPlano) {
+    const total = Math.round(numero(valores[chaveSerie(s)]?.reps, 3600) ?? (e.max || e.min || 30));
+    if (pausaFim) mudarPausa("pular"); // começou a série: a pausa acabou
+    setCrono({ s, e, total, fim: Date.now() + total * 1000 });
+    if (modoPip !== "desligado") agendarPipMisturado(total);
+  }
+
+  /** Parou antes: guarda os segundos que fez; o aluno confere e marca. */
+  function pararCrono() {
+    if (!crono) return;
+    const feitos = Math.max(1, Math.round(crono.total - (crono.fim - Date.now()) / 1000));
+    setValores((x) => ({ ...x, [chaveSerie(crono.s)]: { ...(x[chaveSerie(crono.s)] ?? { carga: "" }), reps: String(Math.min(feitos, crono.total)) } }));
+    setCrono(null);
+    cancelarPipMisturado();
+  }
+
+  // Tempo da série acabou: vibra, registra os segundos e marca a série (aí começa a pausa)
+  useEffect(() => {
+    if (!crono || agora < crono.fim) return;
+    const c = crono;
+    setCrono(null);
+    navigator.vibrate?.([300, 120, 300]);
+    if (!feitas.has(chaveSerie(c.s))) void alternar(c.s, c.e, { reps: String(c.total) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agora, crono]);
 
   const minutos = Math.floor((agora + desvio.current - Date.parse(p.iniciadaEm)) / 60000);
 
@@ -392,7 +434,7 @@ export function ExecucaoTreino(p: {
                 </p>
                 {ult && (
                   <p className="mt-1 text-xs text-texto-suave">
-                    Última vez: {ult.series.map((s) => `${s.carga != null ? `${br(s.carga)} kg × ` : ""}${e.metrica === "segundos" ? `${s.segundos ?? "-"} s` : s.reps ?? "-"}`).join(" · ")}
+                    Última vez: {ult.series.map((s) => `${s.carga != null ? `${comUnidade(s.carga, s.unidade)} × ` : ""}${e.metrica === "segundos" ? `${s.segundos ?? "-"} s` : s.reps ?? "-"}`).join(" · ")}
                   </p>
                 )}
               </div>
@@ -428,9 +470,24 @@ export function ExecucaoTreino(p: {
               );
             })()}
 
+            {e.aquecimento > 0 && (
+              <p className="mt-2 text-xs text-texto-suave">
+                <b>Aq</b> = série de aquecimento: leve, só para preparar. Não conta nas séries principais.
+              </p>
+            )}
+
             <div className="mt-3 space-y-2">
-              <div className="grid grid-cols-[3.5rem_1fr_1fr_3rem] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-texto-suave">
-                <span>Série</span><span>Carga (kg)</span><span>{e.metrica === "segundos" ? "Segundos" : "Reps"}</span><span />
+              <div className="grid grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)_2.75rem] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-texto-suave">
+                <span>Série</span>
+                <button
+                  type="button"
+                  onClick={() => setUnidades((u) => ({ ...u, [e.id]: UNIDADES[(UNIDADES.indexOf(u[e.id] ?? "kg") + 1) % UNIDADES.length] }))}
+                  className="flex items-center gap-0.5 text-left uppercase text-marca"
+                  aria-label={`Unidade da carga: ${unidades[e.id] ?? "kg"}. Toque para trocar`}
+                >
+                  Carga ({unidades[e.id] ?? "kg"}) <ChevronDown className="size-3" />
+                </button>
+                <span>{e.metrica === "segundos" ? "Segundos" : "Reps"}</span><span />
               </div>
               {series.map((s) => {
                 const k = chaveSerie(s);
@@ -439,13 +496,13 @@ export function ExecucaoTreino(p: {
                 const mudar = (campo: keyof Valor) => (ev: React.ChangeEvent<HTMLInputElement>) =>
                   setValores((x) => ({ ...x, [k]: { ...v, [campo]: ev.target.value.replace(/[^\d.,]/g, "").slice(0, 6) } }));
                 return (
-                  <div key={k} className={`grid grid-cols-[3.5rem_1fr_1fr_3rem] items-center gap-2 rounded-xl p-1 ${feita ? "bg-ok-suave" : ""}`}>
+                  <div key={k} className={`grid grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)_2.75rem] items-center gap-2 rounded-xl p-1 ${feita ? "bg-ok-suave" : ""}`}>
                     <span className={`text-sm font-semibold ${s.aquecimento ? "text-texto-suave" : ""}`}>{s.aquecimento ? `Aq ${s.numero}` : s.numero}</span>
-                    <input className="campo !px-2 !py-2 text-center" inputMode="decimal" placeholder="kg" value={v.carga} onChange={mudar("carga")} disabled={feita} aria-label={`Carga da série ${s.numero}`} />
+                    <input className="campo !px-2 !py-2 text-center" inputMode="decimal" placeholder={dicaCarga(e, s) || unidades[e.id] || "kg"} value={v.carga} onChange={mudar("carga")} disabled={feita} aria-label={`Carga da série ${s.numero}`} />
                     <input className="campo !px-2 !py-2 text-center" inputMode="numeric" placeholder={alvo(e).replace(" s", "")} value={v.reps} onChange={mudar("reps")} disabled={feita} aria-label={`${e.metrica === "segundos" ? "Segundos" : "Repetições"} da série ${s.numero}`} />
                     <button
                       onClick={() => alternar(s, e)}
-                      className={`grid size-11 place-items-center rounded-xl border-2 ${feita ? "border-ok bg-ok text-white" : "border-borda bg-cartao text-texto-suave"}`}
+                      className={`grid size-11 place-items-center rounded-xl border-2 transition-colors ${feita ? "border-ok bg-ok text-white" : "border-borda bg-cartao text-texto-suave"}`}
                       aria-label={feita ? "Desmarcar série" : "Marcar série feita"}
                     >
                       {salvando.has(k) ? <Loader2 className="size-5 animate-spin" /> : <Check className="size-5" />}
@@ -454,10 +511,26 @@ export function ExecucaoTreino(p: {
                 );
               })}
             </div>
-            {proximaDoEx && (
-              <button onClick={() => alternar(proximaDoEx, e)} disabled={salvando.has(chaveSerie(proximaDoEx))} className="botao mt-3 w-full !py-3.5 text-base">
-                <Check className="size-5" /> Concluir {proximaDoEx.aquecimento ? `aquecimento ${proximaDoEx.numero}` : `série ${proximaDoEx.numero}`}
+            {/* Exercício em segundos: cronômetro da série (separado da pausa) */}
+            {e.metrica === "segundos" && (crono?.e.id === e.id ? (
+              <div className="mt-3 flex items-center gap-3 rounded-xl bg-marca p-3 text-white">
+                <Timer className="size-6 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-2xl font-bold tabular-nums leading-none">{tempo(Math.ceil(Math.max(0, (crono.fim - agora) / 1000)))}</p>
+                  <p className="text-xs text-white/80">{crono.s.aquecimento ? `Aquecimento ${crono.s.numero}` : `Série ${crono.s.numero}`} · marca sozinho no fim</p>
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25"><div className="h-full bg-white" style={{ width: `${Math.min(100, ((crono.fim - agora) / 1000 / crono.total) * 100)}%` }} /></div>
+                </div>
+                <button onClick={pararCrono} className="flex items-center gap-1 rounded-xl bg-white/20 px-3 py-2 text-sm font-semibold"><Square className="size-4" /> Parar</button>
+              </div>
+            ) : proximaDoEx && !crono && (
+              <button onClick={() => iniciarCrono(proximaDoEx, e)} className="botao mt-3 w-full !py-3">
+                <Play className="size-5" /> Iniciar cronômetro · {proximaDoEx.aquecimento ? `aquec. ${proximaDoEx.numero}` : `série ${proximaDoEx.numero}`} ({Math.round(numero(valores[chaveSerie(proximaDoEx)]?.reps, 3600) ?? (e.max || e.min || 30))} s)
               </button>
+            ))}
+            {recemConcluido === e.id && completo && (
+              <p className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-ok-suave py-3 font-semibold text-ok">
+                ✅ Exercício concluído! Indo para o próximo…
+              </p>
             )}
           </section>
         );
@@ -469,10 +542,13 @@ export function ExecucaoTreino(p: {
         <section className="cartao space-y-4 p-5">
           <h2 className="font-semibold">Como foi o treino?</h2>
           <div>
-            <p className="mb-2 text-sm text-texto-suave">Esforço de 1 (leve) a 10 (máximo)</p>
-            <div className="grid grid-cols-5 gap-2">
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                <button key={n} onClick={() => setEsforco(n)} className={`rounded-xl border py-2 font-semibold ${esforco === n ? "border-marca bg-marca text-white" : "border-borda"}`}>{n}</button>
+            <p className="mb-2 text-sm text-texto-suave">Quanto puxado foi?</p>
+            <div className="grid grid-cols-4 gap-2">
+              {ESFORCOS.map((x) => (
+                <button key={x.valor} onClick={() => setEsforco(x.valor)} className={`flex flex-col items-center gap-1 rounded-xl border px-1 py-2.5 text-xs font-semibold ${esforco === x.valor ? "border-marca bg-marca text-white" : "border-borda"}`}>
+                  <span className="text-3xl leading-none">{x.emoji}</span>
+                  {x.rotulo}
+                </button>
               ))}
             </div>
           </div>

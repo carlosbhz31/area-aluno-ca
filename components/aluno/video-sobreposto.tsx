@@ -36,7 +36,7 @@ export function VideoSobreposto({ url, titulo, fechar }: { url: string; titulo: 
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
           onClick={(e) => e.stopPropagation()}
-          className={`max-h-full w-full max-w-3xl rounded-xl bg-black ${v.vertical ? "aspect-[9/16] !w-auto h-full" : "aspect-video"}`}
+          className={`max-h-full rounded-xl bg-black ${v.vertical ? "aspect-[9/16] h-[min(60dvh,30rem)] w-auto" : "aspect-video w-full max-w-md"}`}
         />
       </div>
     </div>

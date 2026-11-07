@@ -15,11 +15,11 @@ export default async function SessaoTreino({ params }: { params: Promise<{ id: s
   const ids = plano.map((e) => e.id);
 
   const [feitasR, anterioresR, pausaR, alunoR, zapR] = await Promise.all([
-    s.supabase.from("series_feitas").select("exercicio_id, numero, aquecimento, carga, reps, segundos").eq("execucao_id", exec.id),
+    s.supabase.from("series_feitas").select("exercicio_id, numero, aquecimento, carga, reps, segundos, unidade").eq("execucao_id", exec.id),
     // Última vez de cada exercício (séries válidas de outros treinos)
     s.supabase
       .from("series_feitas")
-      .select("execucao_id, exercicio_id, numero, carga, reps, segundos, feita_em")
+      .select("execucao_id, exercicio_id, numero, carga, reps, segundos, unidade, feita_em")
       .eq("aluno_id", exec.aluno_id)
       .eq("aquecimento", false)
       .neq("execucao_id", exec.id)

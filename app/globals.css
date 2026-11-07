@@ -69,6 +69,12 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Nada passa da largura da tela (nada de arrastar a página para o lado no celular) */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background: var(--fundo);
   color: var(--texto);
@@ -92,6 +98,7 @@ body {
 
 .campo {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--borda);
   background: var(--cartao);
   border-radius: 0.75rem;
