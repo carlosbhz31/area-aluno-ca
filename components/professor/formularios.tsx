@@ -51,6 +51,13 @@ export function FormCadastro({ acao, aluno, novo = false }: { acao: Acao; aluno?
           <option value="light">Light</option>
         </select>
       </Campo>
+      <Campo rotulo="Tipo de aluno">
+        <select name="modalidade" defaultValue={a?.modalidade ?? "consultoria"} className="campo">
+          <option value="consultoria">Consultoria (online)</option>
+          <option value="presencial">Presencial (personal)</option>
+          <option value="ambos">Presencial + consultoria nos outros dias</option>
+        </select>
+      </Campo>
       <Campo rotulo="Valor contratado (R$)"><input name="valor_contratado" inputMode="decimal" defaultValue={a?.valor_contratado ?? ""} className="campo" /></Campo>
       <Campo rotulo="Forma de pagamento"><input name="forma_pagamento" defaultValue={a?.forma_pagamento ?? ""} placeholder="Pix, cartão 6x…" className="campo" /></Campo>
       <Campo rotulo="Tempo contratado"><input name="tempo_contratado" defaultValue={a?.tempo_contratado ?? ""} placeholder="Semestral, anual…" className="campo" /></Campo>

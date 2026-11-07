@@ -19,6 +19,7 @@ export type Aluno = {
   app_treino: AppTreino | null;
   app_treino_link: string | null;
   dia_acompanhamento: number | null;
+  modalidade: "consultoria" | "presencial" | "ambos";
   objetivo: string | null;
   nutricionista: string | null;
   renovacao_plano_alimentar: string | null;
@@ -55,3 +56,5 @@ export const NOME_APP: Record<AppTreino, string> = { mfit: "MFit", treinoio: "tr
 export const NOME_PLANO: Record<Plano, string> = { premium: "Premium", light: "Light" };
 export const NOME_SITUACAO: Record<Situacao, string> = { ativo: "Ativo", inativo: "Inativo", pausado: "Pausado" };
 export const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
+export const NOME_MODALIDADE: Record<Aluno["modalidade"], string> = { consultoria: "Consultoria", presencial: "Presencial", ambos: "Presencial + consultoria" };

@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { exigirProfessor } from "@/lib/sessao";
-import { grupoPadrao, type Metrica, type SemanaPrescrita } from "@/lib/treino";
+import { grupoPadrao, type Cardio, type Metrica, type SemanaPrescrita } from "@/lib/treino";
 
 export type ExercicioLista = {
   id: string;
@@ -227,4 +227,17 @@ export async function salvarAnotacaoProfessor(alunoId: string, chave: string, no
   if (error) return { erro: "Não consegui salvar." };
   revalidatePath(`/professor/alunos/${alunoId}/treino`);
   return {};
+}
+
+/** Cardio do programa ativo (sessões da semana e o texto de cada semana do ciclo). */
+export async function salvarCardio(alunoId: string, programaId: string, cardio: Cardio): Promise<{ erro?: string; ok?: string }> {
+  const { supabase } = await exigirProfessor();
+  const sessoes = (cardio.sessoes ?? [])
+    .map((s) => ({ nome: String(s.nome ?? "").trim().slice(0, 80), semanas: (s.semanas ?? []).slice(0, 16).map((t) => String(t ?? "").trim().slice(0, 300)) }))
+    .filter((s) => s.nome);
+  const valor = sessoes.length || cardio.orientacoes?.trim() ? { orientacoes: limpo(cardio.orientacoes, 3000), sessoes } : null;
+  const { error } = await supabase.from("programas").update({ cardio: valor }).eq("id", programaId).eq("aluno_id", alunoId);
+  if (error) return { erro: "Não consegui salvar o cardio." };
+  revalidatePath(`/professor/alunos/${alunoId}/treino`);
+  return { ok: "Cardio salvo." };
 }

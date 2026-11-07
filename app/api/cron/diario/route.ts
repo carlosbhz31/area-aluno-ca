@@ -108,14 +108,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Cobranças que vencem hoje (e as atrasadas): um aviso por dia no celular do professor
+  const { data: cobr } = await admin.from("cobrancas").select("valor, vencimento, alunos(nome)").is("pago_em", null).lte("vencimento", hoje);
+  const moeda = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+  const nomeCob = (c: { alunos: unknown }) => ((c.alunos as { nome: string } | null)?.nome ?? "Aluno").split(" ")[0];
+  const vencemHoje = (cobr ?? []).filter((c) => c.vencimento === hoje);
+  const atrasadasCob = (cobr ?? []).filter((c) => c.vencimento < hoje);
+  if (vencemHoje.length || atrasadasCob.length) {
+    const corpo = [
+      vencemHoje.length ? `Hoje: ${vencemHoje.map((c) => `${nomeCob(c)} ${moeda(Number(c.valor))}`).join(", ")}` : null,
+      atrasadasCob.length ? `${atrasadasCob.length} atrasada${atrasadasCob.length > 1 ? "s" : ""} (${moeda(atrasadasCob.reduce((t, c) => t + Number(c.valor), 0))})` : null,
+    ].filter(Boolean).join(" · ");
+    for (const p of profR.data ?? []) {
+      await avisar({ userId: p.id, tipo: "cobrancas", referencia: hoje, titulo: vencemHoje.length ? "💰 Pagamentos vencendo hoje" : "💰 Pagamentos atrasados", corpo, url: "/professor/cobrancas" });
+    }
+  }
+
   // Resumo diário para o professor
-  const porId =new Map((alunosR.data ?? []).map((a) => [a.id, a.nome as string]));
+  const porId = new Map((alunosR.data ?? []).map((a) => [a.id, a.nome as string]));
   const recebidos = [...new Set((recentesR.data ?? []).map((a) => a.aluno_id))].map((id) => porId.get(id)).filter(Boolean) as string[];
   const semResposta = acomps.filter((a) => !a.resposta_professor && porId.has(a.aluno_id)).length;
   const anamneses = [...new Set((anamR.data ?? []).map((a) => porId.get(a.aluno_id)).filter(Boolean))] as string[];
 
   const blocos: [string, string[]][] = [
     ["🎂 Aniversário hoje", aniversariantes.map((a) => a.nome as string)],
+    ["💰 Pagamentos que vencem hoje", vencemHoje.map((c) => `${nomeCob(c)} · ${moeda(Number(c.valor))}`)],
+    ["💰 Pagamentos atrasados", atrasadasCob.map((c) => `${nomeCob(c)} · ${moeda(Number(c.valor))} (venceu ${dataBR(c.vencimento)})`)],
     ["Acompanhamentos recebidos nas últimas 24h", recebidos],
     ["Entraram na semana 7", resumo.semana7],
     ["Anamneses para revisar", anamneses],

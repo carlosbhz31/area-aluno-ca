@@ -4,7 +4,7 @@ import { exigirProfessor } from "@/lib/sessao";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR } from "@/lib/formato";
-import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
+import { NOME_APP, NOME_MODALIDADE, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
 import { Avatar, Barra, Selo, Vazio } from "@/components/ui";
 import { linksFotoPerfil } from "@/lib/foto-perfil";
 
@@ -108,6 +108,7 @@ export default async function Alunos({ searchParams }: { searchParams: Promise<F
                       <span className="block truncate font-semibold">{aluno.nome}</span>
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         <Selo tom={aluno.plano === "premium" ? "marca" : "neutro"}>{NOME_PLANO[aluno.plano]}</Selo>
+                        {aluno.modalidade !== "consultoria" && <Selo tom="marca">{NOME_MODALIDADE[aluno.modalidade]}</Selo>}
                         {aluno.situacao !== "ativo" && <Selo tom={aluno.situacao === "pausado" ? "alerta" : "neutro"}>{NOME_SITUACAO[aluno.situacao]}</Selo>}
                         {alertas.map((a) => <Selo key={a.texto} tom={a.tom}>{a.texto}</Selo>)}
                       </span>

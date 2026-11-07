@@ -9,7 +9,8 @@ import { AtivarAvisos } from "@/components/aluno/ativar-avisos";
 import { Selo, Vazio } from "@/components/ui";
 import type { AppsTreino, Ciclo } from "@/lib/tipos";
 import { RelatorioTreino } from "@/components/aluno/relatorio-treino";
-import { relatorioTreino, type ExercicioPlano } from "@/lib/treino";
+import { cardioDaSemana, relatorioTreino, type Cardio, type ExercicioPlano } from "@/lib/treino";
+import { CardioSemana } from "@/components/aluno/cardio-semana";
 import { iniciarTreino } from "./acoes";
 
 type Execucao = { id: string; treino_id: string | null; nome_treino: string; iniciada_em: string; concluida_em: string | null };
@@ -54,7 +55,7 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
   if (!aluno) return null;
 
   const [programaR, execR, cicloR, cfgR] = await Promise.all([
-    s.supabase.from("programas").select("id, nome, observacoes, treinos(id, ordem, nome, foco, exercicios_treino(count))").eq("aluno_id", aluno.id).eq("ativo", true).maybeSingle(),
+    s.supabase.from("programas").select("id, nome, observacoes, cardio, treinos(id, ordem, nome, foco, exercicios_treino(count))").eq("aluno_id", aluno.id).eq("ativo", true).maybeSingle(),
     s.supabase.from("execucoes").select("id, treino_id, nome_treino, iniciada_em, concluida_em, series_feitas(count)").eq("aluno_id", aluno.id).order("iniciada_em", { ascending: false }).limit(30),
     s.supabase.from("ciclos").select("*").eq("aluno_id", aluno.id).eq("ativo", true).maybeSingle<Ciclo>(),
     s.supabase.from("configuracoes").select("valor").eq("chave", "apps_treino").maybeSingle(),
@@ -74,6 +75,14 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
   for (const e of feitas) if (e.treino_id && !ultimaVez.has(e.treino_id)) ultimaVez.set(e.treino_id, e.concluida_em!);
   const recemConcluido = concluido ? feitas.find((e) => e.id === concluido) : null;
   const relatorio = recemConcluido ? await montarRelatorio(s.supabase, aluno.id, recemConcluido, feitas) : null;
+
+  // Cardio da semana do ciclo (antes do início do ciclo, a semana 1)
+  const semanaCardio = sit.tipo === "em_andamento" ? sit.semana : 1;
+  const cardio = programa ? (programa.cardio as Cardio | null) : null;
+  const sessoesCardio = cardioDaSemana(cardio, semanaCardio);
+  const { data: cardioFeito } = sessoesCardio.length
+    ? await s.supabase.from("cardio_feitos").select("sessao, minutos, distancia_km").eq("programa_id", programa!.id).eq("semana", semanaCardio)
+    : { data: [] };
 
   if (!programa) {
     const apps = { ...APPS_PADRAO, ...((cfgR.data?.valor as AppsTreino) ?? {}) };
@@ -161,6 +170,18 @@ export default async function Treino({ searchParams }: { searchParams: Promise<{
           );
         })}
       </ul>
+
+      {programa && sessoesCardio.length > 0 && (
+        <CardioSemana
+          programaId={programa.id}
+          semana={semanaCardio}
+          orientacoes={cardio?.orientacoes ?? null}
+          sessoes={sessoesCardio.map((x) => {
+            const f = (cardioFeito ?? []).find((c) => c.sessao === x.indice);
+            return { ...x, feito: f ? { minutos: f.minutos, distancia_km: f.distancia_km == null ? null : Number(f.distancia_km) } : null };
+          })}
+        />
+      )}
 
       {feitas.length > 0 && (
         <section className="cartao p-5">

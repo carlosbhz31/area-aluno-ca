@@ -7,7 +7,8 @@
 //      --so-ciclo: só acerta o ciclo e liga o programa ativo a ele (programa já importado antes)
 //
 // JSON: { nome, observacoes, ciclo: { inicio: "AAAA-MM-DD", semanas?, objetivo, link_ciclo, link_prontuario },
-//         evolucao?: Semana[], treinos: [{ nome, foco, observacoes,
+//         evolucao?: Semana[], cardio?: { orientacoes, sessoes: [{ nome: "Quarta · corrida de qualidade", semanas: ["25min leves", ...] }] },
+//         treinos: [{ nome, foco, observacoes,
 //         exercicios: [{ nome, prescricao: Semana[] | "evolucao", aquecimento?, observacoes?, metrica? }] }] }
 // Semana = { series, min, max, pausa }
 
@@ -18,7 +19,7 @@ import { chaveExercicio as chave, type SemanaPrescrita } from "../lib/treino.ts"
 
 type ExJson = { nome: string; prescricao: SemanaPrescrita[] | "evolucao"; aquecimento?: number; observacoes?: string; metrica?: "reps" | "segundos"; superset?: boolean };
 type CicloJson = { inicio: string; semanas?: number; objetivo?: string; link_ciclo?: string; link_prontuario?: string };
-type ProgJson = { nome: string; observacoes?: string; ciclo?: CicloJson; evolucao?: SemanaPrescrita[]; treinos: { nome: string; foco?: string; observacoes?: string; exercicios: ExJson[] }[] };
+type ProgJson = { nome: string; observacoes?: string; ciclo?: CicloJson; evolucao?: SemanaPrescrita[]; cardio?: unknown; treinos: { nome: string; foco?: string; observacoes?: string; exercicios: ExJson[] }[] };
 
 const [alunoId, arquivo, flag] = process.argv.slice(2);
 const gravar = flag === "--gravar";
@@ -86,7 +87,7 @@ if (!gravar) {
   console.log("\n(simulação: nada gravado)");
 } else {
   await admin.from("programas").update({ ativo: false }).eq("aluno_id", alunoId).eq("ativo", true);
-  const r1 = await admin.from("programas").insert({ id: programaId, aluno_id: alunoId, ciclo_id: cicloId, nome: prog.nome, observacoes: prog.observacoes ?? null });
+  const r1 = await admin.from("programas").insert({ id: programaId, aluno_id: alunoId, ciclo_id: cicloId, nome: prog.nome, observacoes: prog.observacoes ?? null, cardio: prog.cardio ?? null });
   if (r1.error) throw r1.error;
   const r2 = await admin.from("treinos").insert(treinos);
   if (r2.error) throw r2.error;

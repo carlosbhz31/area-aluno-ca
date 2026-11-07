@@ -246,3 +246,20 @@ export async function lerAnotacoes(supabase: import("@supabase/supabase-js").Sup
   const { data } = await supabase.from("anotacoes_exercicio").select("chave, texto, atualizado_por, atualizado_em").eq("aluno_id", alunoId).neq("texto", "");
   return Object.fromEntries((data ?? []).map((a) => [a.chave, { texto: a.texto, por: a.atualizado_por, em: a.atualizado_em }]));
 }
+
+/** Cardio do programa: sessões fixas da semana (ex.: "Quarta · corrida de qualidade"), cada uma com o
+ *  texto de cada semana do ciclo. Semana sem texto (ou "-") = não tem essa sessão naquela semana. */
+export type SessaoCardio = { nome: string; semanas: string[] };
+export type Cardio = { orientacoes: string | null; sessoes: SessaoCardio[] };
+
+/** O que fazer em cada sessão numa semana do ciclo (sem ciclo = semana 1; depois da última, repete a última). */
+export function cardioDaSemana(c: Cardio | null | undefined, semana: number | null) {
+  if (!c?.sessoes?.length) return [];
+  return c.sessoes
+    .map((s, i) => {
+      const n = s.semanas.length ? Math.min(Math.max(semana ?? 1, 1), s.semanas.length) : 0;
+      const texto = (s.semanas[n - 1] ?? "").trim();
+      return { indice: i, nome: s.nome, texto };
+    })
+    .filter((s) => s.texto && s.texto !== "-");
+}

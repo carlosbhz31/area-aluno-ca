@@ -41,6 +41,7 @@ function dadosDoCadastro(f: FormData) {
     objetivo: texto(f, "objetivo"),
     nutricionista: texto(f, "nutricionista"),
     tem_nutricao: f.get("tem_nutricao") === "on",
+    modalidade: ["consultoria", "presencial", "ambos"].includes(String(f.get("modalidade"))) ? String(f.get("modalidade")) : "consultoria",
   };
 }
 

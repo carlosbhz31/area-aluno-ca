@@ -202,3 +202,23 @@ async function avisarProfessorTreino(alunoId: string, execucaoId: string, esforc
     });
   }
 }
+
+/** Marca (ou desmarca) uma sessão de cardio da semana como feita. */
+export async function marcarCardio(x: { programaId: string; semana: number; sessao: number; nome: string; feito: boolean; minutos?: string; distancia?: string }) {
+  const s = await meuAluno();
+  if (!x.feito) {
+    await s.supabase.from("cardio_feitos").delete().match({ programa_id: x.programaId, semana: x.semana, sessao: x.sessao, aluno_id: s.alunoId });
+  } else {
+    const min = numero(x.minutos ?? null, 600);
+    const { error } = await s.supabase.from("cardio_feitos").upsert(
+      {
+        aluno_id: s.alunoId, programa_id: x.programaId, semana: x.semana, sessao: x.sessao, nome: x.nome.slice(0, 120),
+        minutos: min == null ? null : Math.round(min), distancia_km: numero(x.distancia ?? null, 200), feito_em: new Date().toISOString(),
+      },
+      { onConflict: "programa_id,semana,sessao" },
+    );
+    if (error) return { erro: "Não consegui salvar. Confere a internet." };
+  }
+  revalidatePath("/treino");
+  return {};
+}

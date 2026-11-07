@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, CheckCircle2, Dumbbell, Circle, ClipboardList, Download, Eye, FileText, History, LineChart, NotebookPen, Pause, Play, Salad,
-  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageCircle, MessageSquareText,
+  ScrollText, ShieldCheck, Trophy, UserCog, ExternalLink, Lock, MessageCircle, MessageSquareText, Wallet,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
-import { situacaoDoCiclo } from "@/lib/ciclo";
+import { hojeEmBH, situacaoDoCiclo } from "@/lib/ciclo";
+import { FormCobranca, ItemCobranca, type LinhaCobranca } from "@/components/professor/cobrancas";
 import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR, linkWhatsapp, moedaBR } from "@/lib/formato";
-import { NOME_APP, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
+import { NOME_APP, NOME_MODALIDADE, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
 import { Avatar, Barra, Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
 import { linksFotoPerfil } from "@/lib/foto-perfil";
 import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, FormExcluirAluno, FormOrientacao, UploadPlano, type DadosPrivados } from "@/components/professor/formularios";
@@ -59,10 +60,14 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
     supabase.from("dados_privados").select("*").eq("aluno_id", id).maybeSingle<DadosPrivados>(),
   ]);
 
-  const [{ data: programaAtivo }, { data: ultimaExecucao }] = await Promise.all([
+  const [{ data: programaAtivo }, { data: ultimaExecucao }, { data: cobrancasR }] = await Promise.all([
     supabase.from("programas").select("nome, treinos(id)").eq("aluno_id", id).eq("ativo", true).maybeSingle(),
     supabase.from("execucoes").select("nome_treino, iniciada_em").eq("aluno_id", id).order("iniciada_em", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("cobrancas").select("*").eq("aluno_id", id).order("vencimento", { ascending: false }).limit(36),
   ]);
+  const hojeBH = hojeEmBH();
+  const cobrancasAluno: LinhaCobranca[] = (cobrancasR ?? []).map((c) => ({ ...c, valor: Number(c.valor), aluno: aluno.nome, zap: null, calculo: c.calculo ?? null }));
+  const abertasAluno = cobrancasAluno.filter((c) => !c.pago_em);
 
   // Primeiro acesso: só dá para saber pelo serviço de login (servidor, professor já verificado)
   let ultimoAcesso: string | null = null;
@@ -109,6 +114,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Selo tom={aluno.plano === "premium" ? "marca" : "neutro"}>{NOME_PLANO[aluno.plano]}</Selo>
             <Selo tom={aluno.situacao === "ativo" ? "ok" : aluno.situacao === "pausado" ? "alerta" : "neutro"}>{NOME_SITUACAO[aluno.situacao]}</Selo>
+            {aluno.modalidade !== "consultoria" && <Selo tom="marca">{NOME_MODALIDADE[aluno.modalidade]}</Selo>}
             {aluno.app_treino && <Selo>{NOME_APP[aluno.app_treino]}</Selo>}
             {alertas.map((a) => <Selo key={a.texto} tom={a.tom}>{a.texto}</Selo>)}
           </div>
@@ -259,6 +265,23 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
         </div>
 
         <div className="space-y-6">
+          <Cartao>
+            <TituloCartao icone={Wallet} acao={abertasAluno.length > 0 && <span className="text-sm font-bold">{moedaBR(abertasAluno.reduce((t, c) => t + c.valor, 0))} a receber</span>}>Cobranças</TituloCartao>
+            {cobrancasAluno.length > 0 && (
+              <ul className="mb-3 divide-y divide-borda">
+                {[...abertasAluno].reverse().concat(cobrancasAluno.filter((c) => c.pago_em).slice(0, 4)).map((c) => (
+                  <ItemCobranca key={c.id} c={c} hoje={hojeBH} mostrarAluno={false} />
+                ))}
+              </ul>
+            )}
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold text-marca">Nova cobrança</summary>
+              <div className="mt-3">
+                <FormCobranca alunos={[{ id, nome: aluno.nome, modalidade: aluno.modalidade }]} alunoFixo={id} hoje={hojeBH} />
+              </div>
+            </details>
+          </Cartao>
+
           <Cartao>
             <TituloCartao icone={NotebookPen}>Anotações internas</TituloCartao>
             <FormAnotacao acao={adicionarAnotacao.bind(null, id)} />

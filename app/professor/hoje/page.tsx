@@ -1,11 +1,11 @@
 import Link from "next/link";
 import {
-  AlertTriangle, Cake, CalendarCheck, ChevronRight, Clock, Dumbbell, Hourglass, Inbox, Megaphone, RefreshCw, ScrollText,
+  AlertTriangle, Cake, CalendarCheck, ChevronRight, Clock, Dumbbell, Hourglass, Inbox, Megaphone, RefreshCw, ScrollText, Wallet,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { hojeEmBH, situacaoDoCiclo, emRetaFinal } from "@/lib/ciclo";
 import { prazoDaSemana, sinaisDeAlerta, type Respostas } from "@/lib/acompanhamento";
-import { dataBR } from "@/lib/formato";
+import { dataBR, moedaBR } from "@/lib/formato";
 import type { Aluno, Ciclo } from "@/lib/tipos";
 import { Cartao, Selo, TituloCartao } from "@/components/ui";
 import { FormOrientacao } from "@/components/professor/formularios";
@@ -61,14 +61,23 @@ export default async function Hoje() {
     supabase.from("acompanhamentos").select("aluno_id"),
     supabase.from("registros_evolucao").select("aluno_id").gt("criado_em", "2026-11-01"), // registros importados do sistema antigo não contam
   ]);
-  const [programasR, treinosR] = await Promise.all([
+  const [programasR, treinosR, cobrancasR] = await Promise.all([
     supabase.from("programas").select("aluno_id").eq("ativo", true),
     supabase
       .from("execucoes")
       .select("id, aluno_id, nome_treino, iniciada_em, concluida_em, esforco, comentario")
       .gte("iniciada_em", new Date(Date.now() - 30 * DIA_MS).toISOString())
       .order("iniciada_em", { ascending: false }),
+    supabase.from("cobrancas").select("id, aluno_id, descricao, valor, vencimento").is("pago_em", null).lte("vencimento", hoje).order("vencimento"),
   ]);
+  // Pagamentos que vencem hoje ou já venceram
+  const cobrancas: Linha[] = (cobrancasR.data ?? []).map((c) => ({
+    id: c.id,
+    href: "/professor/cobrancas",
+    nome: porId.get(c.aluno_id)?.nome ?? "Aluno",
+    detalhe: `${c.descricao} · ${moedaBR(Number(c.valor))}`,
+    selos: [{ texto: c.vencimento === hoje ? "Vence hoje" : `Venceu ${dataBR(c.vencimento).slice(0, 5)}`, tom: c.vencimento === hoje ? ("alerta" as const) : ("perigo" as const) }],
+  }));
 
   // Só cobra atraso de quem já começou a usar o app (mandou acompanhamento ou registrou evolução)
   const usaApp = new Set([...(usaAcompR.data ?? []), ...(usaEvolR.data ?? [])].map((x) => x.aluno_id));
@@ -242,6 +251,7 @@ export default async function Hoje() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {cobrancas.length > 0 && <Lista titulo="Pagamentos para conferir" icone={Wallet} linhas={cobrancas} vazio="" />}
         {aniversarios.length > 0 && <Lista titulo="Aniversários (próximos 7 dias)" icone={Cake} linhas={aniversarios} vazio="" />}
         <Lista titulo="Acompanhamentos sem resposta" icone={Inbox} linhas={semResposta} vazio="Nenhum esperando resposta." />
         <Lista titulo="Acompanhamentos atrasados" icone={Clock} linhas={atrasados} vazio="Ninguém atrasado." />

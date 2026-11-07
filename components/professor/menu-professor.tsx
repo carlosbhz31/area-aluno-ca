@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarClock, Dumbbell, PlayCircle, Settings, Users } from "lucide-react";
+import { BarChart3, CalendarClock, Dumbbell, PlayCircle, Settings, Users, Wallet } from "lucide-react";
 
 const ITENS_BASE: { href: string | null; rotulo: string; curto?: string; icone: typeof Users }[] = [
   { href: "/professor/hoje", rotulo: "Hoje", icone: CalendarClock },
   { href: "/professor/alunos", rotulo: "Alunos", icone: Users },
   { href: "/professor/exercicios", rotulo: "Exercícios", icone: Dumbbell },
+  { href: "/professor/cobrancas", rotulo: "Cobranças", curto: "Cobrar", icone: Wallet },
   { href: "/professor/configuracoes", rotulo: "Configurações", curto: "Ajustes", icone: Settings },
   { href: null, rotulo: "Supervisão", icone: BarChart3 },
 ];

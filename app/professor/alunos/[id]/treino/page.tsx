@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Dumbbell, History, MessageSquareText, NotebookPen } from "lucide-react";
+import { ArrowLeft, Dumbbell, HeartPulse, History, MessageSquareText, NotebookPen } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { situacaoDoCiclo } from "@/lib/ciclo";
 import { dataBR } from "@/lib/formato";
 import { Cartao, Selo, TituloCartao, Vazio } from "@/components/ui";
 import { EditorPrograma } from "@/components/professor/editor-programa";
 import type { ExercicioEditor, ExercicioLista, ProgramaEditor } from "../../../treino-acoes";
-import { chaveAnotacao, esforcoDe, lerAnotacoes, type ExercicioPlano } from "@/lib/treino";
+import { chaveAnotacao, esforcoDe, lerAnotacoes, type Cardio, type ExercicioPlano } from "@/lib/treino";
 import { AnotacaoExercicio } from "@/components/anotacao-exercicio";
-import { salvarAnotacaoProfessor } from "../../../treino-acoes";
+import { EditorCardio } from "@/components/professor/editor-cardio";
+import { salvarAnotacaoProfessor, salvarCardio } from "../../../treino-acoes";
 import type { Ciclo } from "@/lib/tipos";
 
 export const metadata = { title: "Treino do aluno · Painel do Professor" };
@@ -24,7 +25,7 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
   if (!aluno) notFound();
 
   const [programa, biblioteca, ciclo, outros, execucoes] = await Promise.all([
-    supabase.from("programas").select("id, nome, observacoes, treinos(id, ordem, nome, foco, observacoes, exercicios_treino(*))").eq("aluno_id", id).eq("ativo", true).maybeSingle(),
+    supabase.from("programas").select("id, nome, observacoes, cardio, treinos(id, ordem, nome, foco, observacoes, exercicios_treino(*))").eq("aluno_id", id).eq("ativo", true).maybeSingle(),
     supabase.from("exercicios").select("id, nome, grupo, equipamento, video_url, metrica, observacoes").order("nome"),
     supabase.from("ciclos").select("*").eq("aluno_id", id).eq("ativo", true).maybeSingle<Ciclo>(),
     supabase.from("programas").select("aluno_id, alunos!inner(nome)").eq("ativo", true).neq("aluno_id", id),
@@ -84,6 +85,14 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
         nomeSugerido={nomeSugerido}
         outrosAlunos={outrosAlunos}
       />
+
+      {programa.data && (
+        <Cartao>
+          <TituloCartao icone={HeartPulse}>Cardio</TituloCartao>
+          <p className="mb-3 text-sm text-texto-suave">O aluno vê na aba Treino só o cardio da semana dele e marca quando fizer.</p>
+          <EditorCardio inicial={(programa.data.cardio as Cardio | null) ?? null} semanas={semanas} salvar={salvarCardio.bind(null, id, programa.data.id)} />
+        </Cartao>
+      )}
 
       {exerciciosPrograma.length > 0 && (
         <Cartao>
