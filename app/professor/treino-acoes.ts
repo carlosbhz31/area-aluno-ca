@@ -241,3 +241,14 @@ export async function salvarCardio(alunoId: string, programaId: string, cardio: 
   revalidatePath(`/professor/alunos/${alunoId}/treino`);
   return { ok: "Cardio salvo." };
 }
+
+/** Troca o programa que está valendo para o aluno (o atual vai para os anteriores). */
+export async function ativarPrograma(alunoId: string, programaId: string) {
+  const { supabase } = await exigirProfessor();
+  const { data: alvo } = await supabase.from("programas").select("id").eq("id", programaId).eq("aluno_id", alunoId).maybeSingle();
+  if (!alvo) return;
+  await supabase.from("programas").update({ ativo: false }).eq("aluno_id", alunoId).eq("ativo", true);
+  await supabase.from("programas").update({ ativo: true }).eq("id", programaId);
+  revalidatePath(`/professor/alunos/${alunoId}/treino`);
+  revalidatePath(`/professor/alunos/${alunoId}`);
+}

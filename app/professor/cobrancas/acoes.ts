@@ -77,3 +77,21 @@ export async function excluirCobranca(id: string) {
   const { data: c } = await supabase.from("cobrancas").delete().eq("id", id).select("aluno_id").maybeSingle();
   atualizar(c?.aluno_id);
 }
+
+/** Várias de uma vez: marca como recebidas hoje (ou desfaz). */
+export async function marcarVariasPagas(ids: string[], pago: boolean) {
+  const { supabase } = await exigirProfessor();
+  if (!ids.length) return;
+  const { data } = await supabase.from("cobrancas").update({ pago_em: pago ? hojeEmBH() : null }).in("id", ids.slice(0, 200)).select("aluno_id");
+  [...new Set((data ?? []).map((c) => c.aluno_id))].forEach((a) => atualizar(a));
+  atualizar();
+}
+
+/** Várias de uma vez: apaga lançamentos errados. */
+export async function excluirVarias(ids: string[]) {
+  const { supabase } = await exigirProfessor();
+  if (!ids.length) return;
+  const { data } = await supabase.from("cobrancas").delete().in("id", ids.slice(0, 200)).select("aluno_id");
+  [...new Set((data ?? []).map((c) => c.aluno_id))].forEach((a) => atualizar(a));
+  atualizar();
+}

@@ -10,7 +10,8 @@ import type { ExercicioEditor, ExercicioLista, ProgramaEditor } from "../../../t
 import { chaveAnotacao, esforcoDe, lerAnotacoes, type Cardio, type ExercicioPlano } from "@/lib/treino";
 import { AnotacaoExercicio } from "@/components/anotacao-exercicio";
 import { EditorCardio } from "@/components/professor/editor-cardio";
-import { salvarAnotacaoProfessor, salvarCardio } from "../../../treino-acoes";
+import { ativarPrograma, salvarAnotacaoProfessor, salvarCardio } from "../../../treino-acoes";
+import { ProgramasAnteriores } from "@/components/programas-anteriores";
 import type { Ciclo } from "@/lib/tipos";
 
 export const metadata = { title: "Treino do aluno · Painel do Professor" };
@@ -85,6 +86,8 @@ export default async function TreinoDoAluno({ params }: { params: Promise<{ id: 
         nomeSugerido={nomeSugerido}
         outrosAlunos={outrosAlunos}
       />
+
+      <ProgramasAnteriores supabase={supabase} alunoId={id} ativar={ativarPrograma.bind(null, id)} />
 
       {programa.data && (
         <Cartao>

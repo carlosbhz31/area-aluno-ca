@@ -3,6 +3,7 @@ import { exigirAluno } from "@/lib/sessao";
 import { FormEvolucao } from "@/components/aluno/form-evolucao";
 import { PainelEvolucao } from "@/components/evolucao";
 import { HistoricoTreinos } from "@/components/historico-treinos";
+import { ProgramasAnteriores } from "@/components/programas-anteriores";
 
 export const metadata = { title: "Evolução · Área do Aluno CA" };
 
@@ -25,7 +26,10 @@ export default async function Evolucao({ searchParams }: { searchParams: Promise
         </nav>
       </header>
       {treinos ? (
-        <HistoricoTreinos supabase={s.supabase} alunoId={aluno.id} />
+        <>
+          <HistoricoTreinos supabase={s.supabase} alunoId={aluno.id} />
+          <ProgramasAnteriores supabase={s.supabase} alunoId={aluno.id} />
+        </>
       ) : (
         <>
           <p className="text-sm text-texto-suave">Uma vez por semana no mesmo horário, de preferência em jejum. Só você e o Carlos veem.</p>

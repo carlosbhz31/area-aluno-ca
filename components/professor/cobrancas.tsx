@@ -3,7 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { Calculator, Check, Loader2, MessageCircle, Plus, Trash2 } from "lucide-react";
-import { criarCobranca, excluirCobranca, marcarPago } from "@/app/professor/cobrancas/acoes";
+import { criarCobranca, excluirCobranca, excluirVarias, marcarPago, marcarVariasPagas } from "@/app/professor/cobrancas/acoes";
 import { textoCalculo, totalAulas, type CalculoAulas } from "@/lib/cobranca";
 import { dataBR, moedaBR } from "@/lib/formato";
 
@@ -26,14 +26,75 @@ const n = (v: string) => {
   return Number.isFinite(x) ? x : 0;
 };
 
+/** Lista de cobranças com "Selecionar": marca várias como recebidas ou apaga lançamentos errados de uma vez. */
+export function ListaCobrancas({ itens, hoje, mostrarAluno = true }: { itens: LinhaCobranca[]; hoje: string; mostrarAluno?: boolean }) {
+  const [selecionando, setSelecionando] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [pendente, iniciar] = useTransition();
+  const escolhidas = itens.filter((c) => sel.has(c.id));
+  const total = escolhidas.reduce((t, c) => t + c.valor, 0);
+  const todasPagas = escolhidas.length > 0 && escolhidas.every((c) => c.pago_em);
+  const fim = () => { setSel(new Set()); setSelecionando(false); };
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-end gap-3 text-sm">
+        {selecionando && (
+          <button type="button" onClick={() => setSel(sel.size === itens.length ? new Set() : new Set(itens.map((c) => c.id)))} className="font-semibold text-texto-suave">
+            {sel.size === itens.length ? "Limpar" : "Todas"}
+          </button>
+        )}
+        <button type="button" onClick={() => (selecionando ? fim() : setSelecionando(true))} className="font-semibold text-marca">
+          {selecionando ? "Cancelar" : "Selecionar"}
+        </button>
+      </div>
+      <ul className="divide-y divide-borda">
+        {itens.map((c) => (
+          <ItemCobranca
+            key={c.id + (c.pago_em ?? "")}
+            c={c}
+            hoje={hoje}
+            mostrarAluno={mostrarAluno}
+            selecao={selecionando ? { marcada: sel.has(c.id), alternar: () => setSel((s) => { const n = new Set(s); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; }) } : undefined}
+          />
+        ))}
+      </ul>
+      {selecionando && sel.size > 0 && (
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-menu p-3 text-white shadow-xl md:bottom-4">
+          <span className="flex-1 text-sm">{sel.size} selecionada{sel.size > 1 ? "s" : ""} · <b>{moedaBR(total)}</b></span>
+          <button
+            type="button"
+            disabled={pendente}
+            onClick={() => iniciar(async () => { await marcarVariasPagas([...sel], !todasPagas); fim(); })}
+            className="botao !py-2 text-sm"
+          >
+            {pendente ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} {todasPagas ? "Desfazer recebido" : "Marcar recebidas"}
+          </button>
+          <button
+            type="button"
+            disabled={pendente}
+            onClick={() => confirm(`Apagar ${sel.size} lançamento${sel.size > 1 ? "s" : ""} (${moedaBR(total)})? Não dá para desfazer.`) && iniciar(async () => { await excluirVarias([...sel]); fim(); })}
+            className="flex items-center gap-1 rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold"
+          >
+            <Trash2 className="size-4" /> Apagar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Uma cobrança: quem, o quê, quanto, quando; o quadradinho marca como recebido. */
-export function ItemCobranca({ c, hoje, mostrarAluno = true }: { c: LinhaCobranca; hoje: string; mostrarAluno?: boolean }) {
+export function ItemCobranca({ c, hoje, mostrarAluno = true, selecao }: { c: LinhaCobranca; hoje: string; mostrarAluno?: boolean; selecao?: { marcada: boolean; alternar: () => void } }) {
   const [pendente, iniciar] = useTransition();
   const [pago, setPago] = useState(!!c.pago_em);
   const atrasada = !pago && c.vencimento < hoje;
   const venceHoje = !pago && c.vencimento === hoje;
   return (
-    <li className="flex items-center gap-3 py-2.5">
+    <li className={`flex items-center gap-3 py-2.5 ${selecao?.marcada ? "bg-marca-suave" : ""}`} onClick={selecao?.alternar}>
+      {selecao ? (
+        <input type="checkbox" checked={selecao.marcada} onChange={selecao.alternar} onClick={(e) => e.stopPropagation()} className="size-5 shrink-0 accent-[var(--marca)]" aria-label="Selecionar" />
+      ) : (
       <button
         type="button"
         onClick={() => iniciar(async () => { setPago(!pago); await marcarPago(c.id, !pago); })}
@@ -42,6 +103,7 @@ export function ItemCobranca({ c, hoje, mostrarAluno = true }: { c: LinhaCobranc
       >
         {pendente ? <Loader2 className="size-4 animate-spin" /> : pago && <Check className="size-4" />}
       </button>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">
           {mostrarAluno ? <Link href={`/professor/alunos/${c.aluno_id}`} className="hover:text-marca">{c.aluno}</Link> : c.descricao}
@@ -58,17 +120,19 @@ export function ItemCobranca({ c, hoje, mostrarAluno = true }: { c: LinhaCobranc
         {atrasada && <p className="text-[11px] text-perigo">atrasada</p>}
         {venceHoje && <p className="text-[11px] font-semibold text-alerta">vence hoje</p>}
       </div>
-      {!pago && c.zap && (atrasada || venceHoje) && (
+      {!selecao && !pago && c.zap && (atrasada || venceHoje) && (
         <a href={c.zap} target="_blank" rel="noopener noreferrer" className="grid size-9 shrink-0 place-items-center rounded-lg text-marca" aria-label="Lembrar pelo WhatsApp"><MessageCircle className="size-4" /></a>
       )}
-      <button
-        type="button"
-        onClick={() => confirm(`Apagar "${c.descricao}" de ${moedaBR(c.valor)}?`) && iniciar(() => excluirCobranca(c.id))}
-        className="grid size-8 shrink-0 place-items-center rounded-lg text-texto-suave"
-        aria-label="Apagar cobrança"
-      >
-        <Trash2 className="size-3.5" />
-      </button>
+      {!selecao && (
+        <button
+          type="button"
+          onClick={() => confirm(`Apagar "${c.descricao}" de ${moedaBR(c.valor)}?`) && iniciar(() => excluirCobranca(c.id))}
+          className="grid size-8 shrink-0 place-items-center rounded-lg text-texto-suave"
+          aria-label="Apagar cobrança"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
     </li>
   );
 }

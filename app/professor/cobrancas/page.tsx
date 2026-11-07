@@ -3,7 +3,7 @@ import { exigirProfessor } from "@/lib/sessao";
 import { hojeEmBH } from "@/lib/ciclo";
 import { linkWhatsapp, moedaBR } from "@/lib/formato";
 import { Cartao, TituloCartao } from "@/components/ui";
-import { FormCobranca, ItemCobranca, type LinhaCobranca } from "@/components/professor/cobrancas";
+import { FormCobranca, ListaCobrancas, type LinhaCobranca } from "@/components/professor/cobrancas";
 import { somarMeses, type CalculoAulas } from "@/lib/cobranca";
 
 export const metadata = { title: "Cobranças · Painel do Professor" };
@@ -60,13 +60,13 @@ export default async function Cobrancas() {
           {atrasadas.length > 0 && (
             <Cartao>
               <TituloCartao icone={AlertTriangle} acao={<span className="text-sm font-bold text-perigo">{atrasadas.length}</span>}>Atrasadas</TituloCartao>
-              <ul className="divide-y divide-borda">{atrasadas.map((c) => <ItemCobranca key={c.id} c={c} hoje={hoje} />)}</ul>
+              <ListaCobrancas itens={atrasadas} hoje={hoje} />
             </Cartao>
           )}
           <Cartao>
             <TituloCartao icone={CalendarClock} acao={<span className="text-sm font-bold">{moedaBR(soma(proximas))}</span>}>Próximos 30 dias</TituloCartao>
             {proximas.length ? (
-              <ul className="divide-y divide-borda">{proximas.map((c) => <ItemCobranca key={c.id} c={c} hoje={hoje} />)}</ul>
+              <ListaCobrancas itens={proximas} hoje={hoje} />
             ) : (
               <p className="text-sm text-texto-suave">Nada vencendo nos próximos 30 dias.</p>
             )}
@@ -74,12 +74,12 @@ export default async function Cobrancas() {
           {depois.length > 0 && (
             <details className="cartao p-4">
               <summary className="cursor-pointer font-semibold">Mais para frente ({depois.length} · {moedaBR(soma(depois))})</summary>
-              <ul className="mt-2 divide-y divide-borda">{depois.map((c) => <ItemCobranca key={c.id} c={c} hoje={hoje} />)}</ul>
+              <div className="mt-2"><ListaCobrancas itens={depois} hoje={hoje} /></div>
             </details>
           )}
           <details className="cartao p-4">
             <summary className="flex cursor-pointer items-center gap-2 font-semibold"><CheckCircle2 className="size-4 text-ok" /> Recebidas ({pagas.length})</summary>
-            <ul className="mt-2 divide-y divide-borda">{pagas.map((c) => <ItemCobranca key={c.id} c={c} hoje={hoje} />)}</ul>
+            <div className="mt-2"><ListaCobrancas itens={pagas} hoje={hoje} /></div>
           </details>
         </div>
 

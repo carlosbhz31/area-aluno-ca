@@ -7,7 +7,7 @@ import {
 import { exigirProfessor } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { hojeEmBH, situacaoDoCiclo } from "@/lib/ciclo";
-import { FormCobranca, ItemCobranca, type LinhaCobranca } from "@/components/professor/cobrancas";
+import { FormCobranca, ListaCobrancas, type LinhaCobranca } from "@/components/professor/cobrancas";
 import { alertasDoAluno } from "@/lib/atencao";
 import { dataBR, linkWhatsapp, moedaBR } from "@/lib/formato";
 import { NOME_APP, NOME_MODALIDADE, NOME_PLANO, NOME_SITUACAO, type Aluno, type Ciclo } from "@/lib/tipos";
@@ -268,11 +268,9 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           <Cartao>
             <TituloCartao icone={Wallet} acao={abertasAluno.length > 0 && <span className="text-sm font-bold">{moedaBR(abertasAluno.reduce((t, c) => t + c.valor, 0))} a receber</span>}>Cobranças</TituloCartao>
             {cobrancasAluno.length > 0 && (
-              <ul className="mb-3 divide-y divide-borda">
-                {[...abertasAluno].reverse().concat(cobrancasAluno.filter((c) => c.pago_em).slice(0, 4)).map((c) => (
-                  <ItemCobranca key={c.id} c={c} hoje={hojeBH} mostrarAluno={false} />
-                ))}
-              </ul>
+              <div className="mb-3">
+                <ListaCobrancas itens={[...abertasAluno].reverse().concat(cobrancasAluno.filter((c) => c.pago_em).slice(0, 6))} hoje={hojeBH} mostrarAluno={false} />
+              </div>
             )}
             <details>
               <summary className="cursor-pointer text-sm font-semibold text-marca">Nova cobrança</summary>
