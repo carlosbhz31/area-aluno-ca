@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  AlertTriangle, CalendarCheck, ChevronRight, Clock, Hourglass, Inbox, Megaphone, RefreshCw, ScrollText,
+  AlertTriangle, Cake, CalendarCheck, ChevronRight, Clock, Dumbbell, Hourglass, Inbox, Megaphone, RefreshCw, ScrollText,
 } from "lucide-react";
 import { exigirProfessor } from "@/lib/sessao";
 import { hojeEmBH, situacaoDoCiclo, emRetaFinal } from "@/lib/ciclo";
@@ -10,6 +10,7 @@ import type { Aluno, Ciclo } from "@/lib/tipos";
 import { Cartao, Selo, TituloCartao } from "@/components/ui";
 import { FormOrientacao } from "@/components/professor/formularios";
 import { publicarOrientacao } from "../acoes";
+import { esforcoDe } from "@/lib/treino";
 
 export const metadata = { title: "Hoje · Painel do Professor" };
 
@@ -59,6 +60,14 @@ export default async function Hoje() {
     supabase.from("configuracoes").select("valor").eq("chave", "dia_padrao_acompanhamento").maybeSingle(),
     supabase.from("acompanhamentos").select("aluno_id"),
     supabase.from("registros_evolucao").select("aluno_id").gt("criado_em", "2026-11-01"), // registros importados do sistema antigo não contam
+  ]);
+  const [programasR, treinosR] = await Promise.all([
+    supabase.from("programas").select("aluno_id").eq("ativo", true),
+    supabase
+      .from("execucoes")
+      .select("id, aluno_id, nome_treino, iniciada_em, concluida_em, esforco, comentario")
+      .gte("iniciada_em", new Date(Date.now() - 30 * DIA_MS).toISOString())
+      .order("iniciada_em", { ascending: false }),
   ]);
 
   // Só cobra atraso de quem já começou a usar o app (mandou acompanhamento ou registrou evolução)
@@ -138,6 +147,39 @@ export default async function Hoje() {
     .filter((a) => porId.has(a.aluno_id))
     .map((a) => ({ id: a.id, href: `/professor/anamneses/${a.id}`, nome: nome(a.aluno_id), detalhe: `${a.tipo === "inicial" ? "Inicial" : "Realinhamento"} · ${dataBR(a.concluida_em)}` }));
 
+  // 7) Treinos de hoje: quem já treinou, quem está treinando agora e quem ainda não foi
+  const inicioHoje = Date.parse(`${hoje}T00:00:00-03:00`);
+  const comPrograma = [...new Set((programasR.data ?? []).map((p) => p.aluno_id))].filter((id) => porId.get(id)?.situacao === "ativo");
+  const execs = treinosR.data ?? [];
+  const deHoje = execs.filter((e) => Date.parse(e.iniciada_em) >= inicioHoje && porId.has(e.aluno_id));
+  const concluiram = deHoje.filter((e) => e.concluida_em);
+  const treinando = deHoje.filter((e) => !e.concluida_em);
+  const foram = new Set(deHoje.map((e) => e.aluno_id));
+  const faltam = comPrograma
+    .filter((id) => !foram.has(id))
+    .map((id) => ({ id, ultimo: execs.find((e) => e.aluno_id === id && e.concluida_em)?.iniciada_em ?? null }))
+    .sort((a, b) => (b.ultimo ?? "").localeCompare(a.ultimo ?? "") || nome(a.id).localeCompare(nome(b.id)));
+  const hora = (iso: string) => new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(iso));
+
+  // 8) Aniversários nos próximos 7 dias
+  const aniversarios: Linha[] = alunos
+    .filter(({ aluno }) => aluno.situacao !== "inativo" && aluno.nascimento)
+    .map(({ aluno }) => {
+      const md = aluno.nascimento!.slice(5, 10);
+      let prox = `${hoje.slice(0, 4)}-${md}`;
+      if (prox < hoje) prox = `${Number(hoje.slice(0, 4)) + 1}-${md}`;
+      return { aluno, d: diasEntre(hoje, prox), idade: Number(prox.slice(0, 4)) - Number(aluno.nascimento!.slice(0, 4)) };
+    })
+    .filter((x) => x.d <= 7)
+    .sort((a, b) => a.d - b.d)
+    .map(({ aluno, d, idade }) => ({
+      id: aluno.id,
+      href: `/professor/alunos/${aluno.id}`,
+      nome: aluno.nome,
+      detalhe: `${dataBR(aluno.nascimento).slice(0, 5)} · faz ${idade} anos`,
+      selos: [{ texto: d === 0 ? "🎂 Hoje" : d === 1 ? "Amanhã" : `em ${d} dias`, tom: d === 0 ? ("ok" as const) : ("neutro" as const) }],
+    }));
+
   const total = semResposta.length + atrasados.length + reavaliacao.length;
   const naoComecaram = alunos.filter((x) => x.aluno.situacao === "ativo" && !usaApp.has(x.aluno.id)).length;
 
@@ -150,7 +192,57 @@ export default async function Hoje() {
         </p>
       </div>
 
+
+      {comPrograma.length > 0 && (
+        <Cartao>
+          <TituloCartao icone={Dumbbell} acao={<span className="text-sm font-bold">{concluiram.length}/{comPrograma.length}</span>}>Treinos de hoje</TituloCartao>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="rotulo mb-2">Já treinaram</p>
+              {concluiram.length || treinando.length ? (
+                <ul className="-mx-2 divide-y divide-borda">
+                  {[...treinando, ...concluiram].map((e) => {
+                    const esf = esforcoDe(e.esforco);
+                    return (
+                      <li key={e.id}>
+                        <Link href={`/professor/alunos/${e.aluno_id}/treino`} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-fundo">
+                          <span className="text-lg">{e.concluida_em ? "✅" : "🏋️"}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold">{nome(e.aluno_id)}</span>
+                            <span className="block truncate text-xs text-texto-suave">
+                              {e.nome_treino} · {e.concluida_em ? `terminou ${hora(e.concluida_em)}` : `treinando agora (começou ${hora(e.iniciada_em)})`}
+                            </span>
+                            {e.comentario && <span className="block truncate text-xs text-marca">“{e.comentario}”</span>}
+                          </span>
+                          {esf && <Selo tom={esf.valor >= 10 ? "alerta" : "neutro"}>{esf.emoji} {esf.rotulo}</Selo>}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-sm text-texto-suave">Ninguém treinou ainda hoje.</p>
+              )}
+            </div>
+            <div>
+              <p className="rotulo mb-2">Ainda não treinaram ({faltam.length})</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {faltam.map((f) => (
+                  <li key={f.id}>
+                    <Link href={`/professor/alunos/${f.id}/treino`} className="inline-flex items-center gap-1 rounded-full border border-borda px-2.5 py-1 text-xs hover:bg-fundo">
+                      <span className="font-medium">{nome(f.id).split(" ")[0]}</span>
+                      <span className="text-texto-suave">{f.ultimo ? `· ${dataBR(f.ultimo).slice(0, 5)}` : "· nunca"}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Cartao>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
+        {aniversarios.length > 0 && <Lista titulo="Aniversários (próximos 7 dias)" icone={Cake} linhas={aniversarios} vazio="" />}
         <Lista titulo="Acompanhamentos sem resposta" icone={Inbox} linhas={semResposta} vazio="Nenhum esperando resposta." />
         <Lista titulo="Acompanhamentos atrasados" icone={Clock} linhas={atrasados} vazio="Ninguém atrasado." />
         <Lista titulo="Reavaliação (semana 7 em diante)" icone={CalendarCheck} linhas={reavaliacao} vazio="Ninguém na reta final do ciclo." />

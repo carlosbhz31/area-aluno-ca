@@ -441,3 +441,20 @@ export async function adicionarAnotacao(alunoId: string, _: Resultado, f: FormDa
   revalidatePath(`/professor/alunos/${alunoId}`);
   return { ok: "Anotado." };
 }
+
+/** Muda a semana do ciclo (aluno ficou doente, viajou...): "voltar" repete uma semana e empurra o fim
+ *  do ciclo 7 dias; "avancar" pula uma semana (desfaz um "voltar" ou adianta o início). */
+export async function moverSemanaCiclo(alunoId: string, cicloId: string, direcao: "voltar" | "avancar") {
+  const { supabase } = await exigirProfessor();
+  const { data: c } = await supabase.from("ciclos").select("inicio, dias_pausados").eq("id", cicloId).single();
+  if (!c) return;
+  if (direcao === "voltar") {
+    await supabase.from("ciclos").update({ dias_pausados: c.dias_pausados + 7 }).eq("id", cicloId);
+  } else if (c.dias_pausados >= 7) {
+    await supabase.from("ciclos").update({ dias_pausados: c.dias_pausados - 7 }).eq("id", cicloId);
+  } else {
+    const inicio = new Date(Date.parse(c.inicio) - 7 * 86_400_000).toISOString().slice(0, 10);
+    await supabase.from("ciclos").update({ inicio }).eq("id", cicloId);
+  }
+  revalidatePath(`/professor/alunos/${alunoId}`);
+}

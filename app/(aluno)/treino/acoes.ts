@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { exigirAluno } from "@/lib/sessao";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { situacaoDoCiclo } from "@/lib/ciclo";
-import { numero, planoDoDia, unidadeValida, type ExercicioFicha } from "@/lib/treino";
+import { esforcoDe, numero, planoDoDia, unidadeValida, type ExercicioFicha } from "@/lib/treino";
+import { avisar } from "@/lib/notificar";
 import type { Ciclo } from "@/lib/tipos";
 
 async function meuAluno() {
@@ -154,6 +155,7 @@ export async function concluirTreino(execucaoId: string, esforco: number | null,
     })
     .eq("id", execucaoId)
     .is("concluida_em", null);
+  await avisarProfessorTreino(s.alunoId, execucaoId, esforco, comentario).catch((e) => console.error("aviso treino concluído", (e as Error).message));
   revalidatePath("/treino");
   redirect(`/treino?concluido=${execucaoId}`);
 }
@@ -174,4 +176,29 @@ export async function salvarAnotacao(chave: string, nome: string, texto: string)
     .from("anotacoes_exercicio")
     .upsert({ aluno_id: s.alunoId, chave: chave.slice(0, 200), nome: nome.slice(0, 200), texto: t, atualizado_por: "aluno", atualizado_em: new Date().toISOString() }, { onConflict: "aluno_id,chave" });
   return error ? { erro: "Não consegui salvar a anotação. Confere a internet." } : {};
+}
+
+/** Aviso no celular do professor: "Fulano concluiu o Treino A" (com o esforço e o recado). */
+async function avisarProfessorTreino(alunoId: string, execucaoId: string, esforco: number | null, comentario: string) {
+  const admin = clienteAdmin();
+  const [{ data: aluno }, { data: exec }, { data: profs }] = await Promise.all([
+    admin.from("alunos").select("nome, user_id").eq("id", alunoId).maybeSingle(),
+    admin.from("execucoes").select("nome_treino, series_feitas(count)").eq("id", execucaoId).maybeSingle(),
+    admin.from("perfis").select("id").eq("papel", "professor"),
+  ]);
+  if (!aluno || !exec) return;
+  const series = (exec.series_feitas as unknown as { count: number }[])[0]?.count ?? 0;
+  const esf = esforcoDe(esforco);
+  const partes = [`${series} séries`, esf ? `${esf.emoji} ${esf.rotulo}` : null, comentario.trim() ? `“${comentario.trim().slice(0, 80)}”` : null].filter(Boolean);
+  for (const p of profs ?? []) {
+    if (p.id === aluno.user_id) continue; // o próprio Carlos treinando não precisa de aviso
+    await avisar({
+      userId: p.id,
+      tipo: "treino_concluido",
+      referencia: execucaoId,
+      titulo: `✅ ${aluno.nome.split(" ")[0]} concluiu o treino`,
+      corpo: `${exec.nome_treino} · ${partes.join(" · ")}`,
+      url: `/professor/alunos/${alunoId}/treino`,
+    });
+  }
 }

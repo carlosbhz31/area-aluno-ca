@@ -16,7 +16,7 @@ import { BotaoSituacao, FormAnotacao, FormCadastro, FormCiclo, FormEndereco, For
 import { PainelEvolucao } from "@/components/evolucao";
 import { sinaisDeAlerta, type Respostas } from "@/lib/acompanhamento";
 import {
-  adicionarAnotacao, darConquista, editarCiclo, excluirDadosDoAluno, mudarSituacao, novoCiclo, pedirRealinhamento, pausarOuRetomarCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
+  adicionarAnotacao, darConquista, editarCiclo, excluirDadosDoAluno, mudarSituacao, novoCiclo, pedirRealinhamento, pausarOuRetomarCiclo, moverSemanaCiclo, publicarOrientacao, registrarDocumento, salvarCadastro, salvarDadosPrivados,
 } from "../../acoes";
 
 export const metadata = { title: "Ficha do aluno · Painel do Professor" };
@@ -161,6 +161,17 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
                   {s.tipo === "em_andamento" && <Barra valor={s.progresso} className="mt-3" />}
                   {cicloAtivo.pausado_desde && <p className="mt-2 text-sm text-alerta">Pausado desde {dataBR(cicloAtivo.pausado_desde)}</p>}
                   {cicloAtivo.dias_pausados > 0 && <p className="mt-1 text-xs text-texto-suave">{cicloAtivo.dias_pausados} dias de pausa já descontados</p>}
+                  {/* Doença, viagem, trabalho: repetir ou pular uma semana. O fim do ciclo acompanha. */}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-xs text-texto-suave">Ajustar semana:</span>
+                    <form action={moverSemanaCiclo.bind(null, id, cicloAtivo.id, "voltar")}>
+                      <button className="botao-secundario !px-3 !py-1.5 text-sm" title="Repete a semana: o aluno volta uma semana e o ciclo termina 7 dias depois">− 1 semana</button>
+                    </form>
+                    <form action={moverSemanaCiclo.bind(null, id, cicloAtivo.id, "avancar")}>
+                      <button className="botao-secundario !px-3 !py-1.5 text-sm" title="Pula uma semana: o aluno avança uma semana e o ciclo termina 7 dias antes">+ 1 semana</button>
+                    </form>
+                  </div>
+                  <p className="mt-1 text-[11px] text-texto-suave">Para um período sem data de volta, use Pausar: a semana fica congelada até você tocar em Retomar.</p>
                   <div className="mt-3 flex flex-wrap gap-3 text-sm">
                     {cicloAtivo.link_ciclo && <a className="inline-flex items-center gap-1 text-marca" href={cicloAtivo.link_ciclo} target="_blank" rel="noopener noreferrer">PDF do ciclo <ExternalLink className="size-3" /></a>}
                     {cicloAtivo.link_prontuario && <a className="inline-flex items-center gap-1 text-marca" href={cicloAtivo.link_prontuario} target="_blank" rel="noopener noreferrer">Prontuário <ExternalLink className="size-3" /></a>}
@@ -209,56 +220,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             )}
           </Cartao>
 
-          {/* Cadastro */}
-          <Cartao>
-            <TituloCartao icone={UserCog}>Cadastro</TituloCartao>
-            <FormCadastro acao={salvarCadastro.bind(null, id)} aluno={aluno} />
-            <p className="mt-4 text-xs text-texto-suave">
-              {aluno.notion_page_id ? "Ligado ao Notion." : "Ainda não ligado ao Notion."} {aluno.origem_id && "Importado do sistema antigo."}
-            </p>
-          </Cartao>
-
-          {/* Endereço e nota fiscal: tabela que o aluno não consegue ler */}
-          <Cartao>
-            <TituloCartao icone={Lock} acao={<span className="text-xs text-texto-suave">Só você vê</span>}>Endereço e nota fiscal</TituloCartao>
-            <FormEndereco acao={salvarDadosPrivados.bind(null, id)} dados={privados.data ?? null} />
-          </Cartao>
-
-          {/* Etapas seguintes */}
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Cartao>
-              <TituloCartao icone={ScrollText}>Anamneses</TituloCartao>
-              {listaAnamneses.length ? (
-                <ul className="-mx-2 space-y-1 text-sm">
-                  {listaAnamneses.map((a) => (
-                    <li key={a.id}>
-                      <Link href={`/professor/anamneses/${a.id}`} className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-fundo">
-                        <span>
-                          <span className="font-semibold">{a.tipo === "inicial" ? "Inicial" : "Realinhamento"}</span>
-                          <span className="ml-2 text-texto-suave">{dataBR(a.concluida_em ?? a.criada_em)}</span>
-                        </span>
-                        <Selo tom={a.status === "revisada" ? "ok" : a.status === "concluida" ? "marca" : "alerta"}>
-                          {a.status === "revisada" ? "Revisada" : a.status === "concluida" ? "Revisar" : "Preenchendo"}
-                        </Selo>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Vazio icone={ScrollText} titulo="Nenhuma anamnese">O aluno preenche pelo app no primeiro acesso.</Vazio>
-              )}
-              {listaAnamneses.some((a) => a.status !== "rascunho") && !listaAnamneses.some((a) => a.status === "rascunho") && (
-                <form action={pedirRealinhamento.bind(null, id)} className="mt-3">
-                  <button className="botao-secundario !py-1.5 text-sm">Pedir anamnese de realinhamento</button>
-                </form>
-              )}
-            </Cartao>
-            <Cartao>
-              <TituloCartao icone={MessageSquareText}>Recado só para este aluno</TituloCartao>
-              <FormOrientacao acao={publicarOrientacao.bind(null, id)} />
-            </Cartao>
-          </div>
-
+          {/* Acompanhamentos */}
           <Cartao>
             <TituloCartao icone={ClipboardList}>Acompanhamentos</TituloCartao>
             {acompanhamentos.data?.length ? (
@@ -286,6 +248,82 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           </Cartao>
 
           <Cartao>
+            <TituloCartao icone={MessageSquareText}>Recado só para este aluno</TituloCartao>
+            <FormOrientacao acao={publicarOrientacao.bind(null, id)} />
+          </Cartao>
+
+          <div>
+            <h2 className="rotulo mb-3 flex items-center gap-2"><LineChart className="size-4" /> Evolução</h2>
+            <PainelEvolucao supabase={supabase} alunoId={id} />
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <Cartao>
+            <TituloCartao icone={NotebookPen}>Anotações internas</TituloCartao>
+            <FormAnotacao acao={adicionarAnotacao.bind(null, id)} />
+            <ul className="mt-4 space-y-3">
+              {(anotacoes.data ?? []).map((n) => (
+                <li key={n.id} className="border-l-2 border-marca pl-3 text-sm">
+                  <p className="whitespace-pre-line">{n.texto}</p>
+                  <p className="mt-0.5 text-xs text-texto-suave">{dataBR(n.criada_em)}</p>
+                </li>
+              ))}
+            </ul>
+          </Cartao>
+
+          <Cartao>
+            <TituloCartao icone={Trophy}>Pontos e conquistas</TituloCartao>
+            <p className="text-sm"><strong className="text-xl">{totalPontos}</strong> pts · {conquistas.count ?? 0} broches</p>
+            <p className="mt-3 text-xs text-texto-suave">Broches que dependem de você:</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <form action={darConquista.bind(null, id, "meta_ciclo")}><button className="botao-secundario !py-1.5 text-sm">Meta do ciclo batida</button></form>
+              <form action={darConquista.bind(null, id, "renovacao")}><button className="botao-secundario !py-1.5 text-sm">Renovou</button></form>
+            </div>
+          </Cartao>
+
+          {conferencia.some((c) => !c.ok) && (
+            <Cartao>
+              <TituloCartao icone={ShieldCheck}>Conferência do cadastro</TituloCartao>
+              <ul className="space-y-2.5 text-sm">
+                {conferencia.map((c) => (
+                  <li key={c.texto} className="flex items-center gap-2">
+                    {c.ok ? <CheckCircle2 className="size-5 text-ok" /> : <Circle className="size-5 text-borda" />}
+                    <span className={c.ok ? "" : "text-texto-suave"}>{c.texto}</span>
+                  </li>
+                ))}
+              </ul>
+              <Barra valor={conferencia.filter((c) => c.ok).length / conferencia.length} className="mt-4" cor="bg-ok" />
+              <p className="mt-2 text-xs text-texto-suave">{ultimoAcesso ? `Último acesso: ${dataBR(ultimoAcesso)}` : "O aluno ainda não entrou."}</p>
+            </Cartao>
+          )}
+        </div>
+      </div>
+
+      {/* O que se usa pouco no dia a dia fica recolhido */}
+      <details className="group rounded-2xl border border-borda">
+        <summary className="flex cursor-pointer items-center gap-2 p-4 font-semibold">
+          <UserCog className="size-5 text-marca" /> Cadastro, anamneses, plano alimentar e dados
+          <span className="ml-auto text-xs font-normal text-texto-suave group-open:hidden">tocar para abrir</span>
+        </summary>
+        <div className="grid gap-6 border-t border-borda p-4 lg:grid-cols-2">
+          <div className="space-y-6">
+          {/* Cadastro */}
+          <Cartao>
+            <TituloCartao icone={UserCog}>Cadastro</TituloCartao>
+            <FormCadastro acao={salvarCadastro.bind(null, id)} aluno={aluno} />
+            <p className="mt-4 text-xs text-texto-suave">
+              {aluno.notion_page_id ? "Ligado ao Notion." : "Ainda não ligado ao Notion."} {aluno.origem_id && "Importado do sistema antigo."}
+            </p>
+          </Cartao>
+
+          {/* Endereço e nota fiscal: tabela que o aluno não consegue ler */}
+          <Cartao>
+            <TituloCartao icone={Lock} acao={<span className="text-xs text-texto-suave">Só você vê</span>}>Endereço e nota fiscal</TituloCartao>
+            <FormEndereco acao={salvarDadosPrivados.bind(null, id)} dados={privados.data ?? null} />
+          </Cartao>
+
+          <Cartao>
             <TituloCartao icone={Salad} acao={!aluno.tem_nutricao && <span className="text-xs text-texto-suave">Área de Nutrição desligada para este aluno</span>}>
               Plano alimentar
             </TituloCartao>
@@ -302,50 +340,51 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             <UploadPlano alunoId={id} registrar={registrarDocumento.bind(null, id)} />
             <p className="mt-2 text-xs text-texto-suave">Publicar um PDF liga a área de Nutrição para o aluno.</p>
           </Cartao>
-
-          <div>
-            <h2 className="rotulo mb-3 flex items-center gap-2"><LineChart className="size-4" /> Evolução</h2>
-            <PainelEvolucao supabase={supabase} alunoId={id} />
           </div>
-        </div>
-
-        <div className="space-y-6">
+          <div className="space-y-6">
           <Cartao>
-            <TituloCartao icone={ShieldCheck}>Conferência do cadastro</TituloCartao>
-            <ul className="space-y-2.5 text-sm">
-              {conferencia.map((c) => (
-                <li key={c.texto} className="flex items-center gap-2">
-                  {c.ok ? <CheckCircle2 className="size-5 text-ok" /> : <Circle className="size-5 text-borda" />}
-                  <span className={c.ok ? "" : "text-texto-suave"}>{c.texto}</span>
-                </li>
-              ))}
-            </ul>
-            <Barra valor={conferencia.filter((c) => c.ok).length / conferencia.length} className="mt-4" cor="bg-ok" />
-            <p className="mt-2 text-xs text-texto-suave">{ultimoAcesso ? `Último acesso: ${dataBR(ultimoAcesso)}` : "O aluno ainda não entrou."}</p>
+            <TituloCartao icone={ScrollText}>Anamneses</TituloCartao>
+            {listaAnamneses.length ? (
+              <ul className="-mx-2 space-y-1 text-sm">
+                {listaAnamneses.map((a) => (
+                  <li key={a.id}>
+                    <Link href={`/professor/anamneses/${a.id}`} className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-fundo">
+                      <span>
+                        <span className="font-semibold">{a.tipo === "inicial" ? "Inicial" : "Realinhamento"}</span>
+                        <span className="ml-2 text-texto-suave">{dataBR(a.concluida_em ?? a.criada_em)}</span>
+                      </span>
+                      <Selo tom={a.status === "revisada" ? "ok" : a.status === "concluida" ? "marca" : "alerta"}>
+                        {a.status === "revisada" ? "Revisada" : a.status === "concluida" ? "Revisar" : "Preenchendo"}
+                      </Selo>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Vazio icone={ScrollText} titulo="Nenhuma anamnese">O aluno preenche pelo app no primeiro acesso.</Vazio>
+            )}
+            {listaAnamneses.some((a) => a.status !== "rascunho") && !listaAnamneses.some((a) => a.status === "rascunho") && (
+              <form action={pedirRealinhamento.bind(null, id)} className="mt-3">
+                <button className="botao-secundario !py-1.5 text-sm">Pedir anamnese de realinhamento</button>
+              </form>
+            )}
           </Cartao>
 
-          <Cartao>
-            <TituloCartao icone={Trophy}>Pontos e conquistas</TituloCartao>
-            <p className="text-sm"><strong className="text-xl">{totalPontos}</strong> pts · {conquistas.count ?? 0} broches</p>
-            <p className="mt-3 text-xs text-texto-suave">Broches que dependem de você:</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <form action={darConquista.bind(null, id, "meta_ciclo")}><button className="botao-secundario !py-1.5 text-sm">Meta do ciclo batida</button></form>
-              <form action={darConquista.bind(null, id, "renovacao")}><button className="botao-secundario !py-1.5 text-sm">Renovou</button></form>
-            </div>
-          </Cartao>
-
-          <Cartao>
-            <TituloCartao icone={NotebookPen}>Anotações internas</TituloCartao>
-            <FormAnotacao acao={adicionarAnotacao.bind(null, id)} />
-            <ul className="mt-4 space-y-3">
-              {(anotacoes.data ?? []).map((n) => (
-                <li key={n.id} className="border-l-2 border-marca pl-3 text-sm">
-                  <p className="whitespace-pre-line">{n.texto}</p>
-                  <p className="mt-0.5 text-xs text-texto-suave">{dataBR(n.criada_em)}</p>
-                </li>
-              ))}
-            </ul>
-          </Cartao>
+          {!conferencia.some((c) => !c.ok) && (
+            <Cartao>
+              <TituloCartao icone={ShieldCheck}>Conferência do cadastro</TituloCartao>
+              <ul className="space-y-2.5 text-sm">
+                {conferencia.map((c) => (
+                  <li key={c.texto} className="flex items-center gap-2">
+                    {c.ok ? <CheckCircle2 className="size-5 text-ok" /> : <Circle className="size-5 text-borda" />}
+                    <span className={c.ok ? "" : "text-texto-suave"}>{c.texto}</span>
+                  </li>
+                ))}
+              </ul>
+              <Barra valor={conferencia.filter((c) => c.ok).length / conferencia.length} className="mt-4" cor="bg-ok" />
+              <p className="mt-2 text-xs text-texto-suave">{ultimoAcesso ? `Último acesso: ${dataBR(ultimoAcesso)}` : "O aluno ainda não entrou."}</p>
+            </Cartao>
+          )}
 
           <Cartao>
             <TituloCartao icone={Download}>Dados do aluno (LGPD)</TituloCartao>
@@ -375,8 +414,9 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
               <p className="text-sm text-texto-suave">Nada registrado ainda.</p>
             )}
           </Cartao>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
   );
 }

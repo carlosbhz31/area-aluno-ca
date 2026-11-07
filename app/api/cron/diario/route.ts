@@ -99,13 +99,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Aniversário de aluno hoje: aviso no celular do professor
+  const aniversariantes = (alunosR.data ?? []).filter((a) => a.nascimento && String(a.nascimento).slice(5, 10) === hoje.slice(5, 10));
+  for (const a of aniversariantes) {
+    const idade = Number(hoje.slice(0, 4)) - Number(String(a.nascimento).slice(0, 4));
+    for (const p of profR.data ?? []) {
+      await avisar({ userId: p.id, tipo: "aniversario", referencia: `${a.id}-${hoje.slice(0, 4)}`, titulo: `🎂 Hoje é aniversário de ${a.nome.split(" ")[0]}`, corpo: `${a.nome} faz ${idade} anos. Manda um parabéns!`, url: `/professor/alunos/${a.id}` });
+    }
+  }
+
   // Resumo diário para o professor
-  const porId = new Map((alunosR.data ?? []).map((a) => [a.id, a.nome as string]));
+  const porId =new Map((alunosR.data ?? []).map((a) => [a.id, a.nome as string]));
   const recebidos = [...new Set((recentesR.data ?? []).map((a) => a.aluno_id))].map((id) => porId.get(id)).filter(Boolean) as string[];
   const semResposta = acomps.filter((a) => !a.resposta_professor && porId.has(a.aluno_id)).length;
   const anamneses = [...new Set((anamR.data ?? []).map((a) => porId.get(a.aluno_id)).filter(Boolean))] as string[];
 
   const blocos: [string, string[]][] = [
+    ["🎂 Aniversário hoje", aniversariantes.map((a) => a.nome as string)],
     ["Acompanhamentos recebidos nas últimas 24h", recebidos],
     ["Entraram na semana 7", resumo.semana7],
     ["Anamneses para revisar", anamneses],
